@@ -851,7 +851,7 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
             Copy-Item $outputPath "$outputPath.backup" -Force | Out-Null
         }
 
-        # 下载内容
+        # 下载主脚本
         $content = $webClient.DownloadString($url)
         
         # 根据控制台编码选择保存编码
@@ -864,7 +864,30 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
         }
         
         [System.IO.File]::WriteAllText($outputPath, $content, $saveEncoding)
-        Write-Host "✓ 更新完成！" -ForegroundColor Green
+        Write-Host "✓ 主脚本更新完成" -ForegroundColor Green
+        
+        # 更新 Tab 补全脚本
+        try {
+            $completionFile = "$env:USERPROFILE\.cc-completion.ps1"
+            $completionContent = $webClient.DownloadString("https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc-completion.ps1")
+            [System.IO.File]::WriteAllText($completionFile, $completionContent, [System.Text.Encoding]::UTF8)
+            Write-Host "✓ Tab 补全脚本已更新" -ForegroundColor Green
+            
+            # 检查是否已添加到 Profile
+            if (!(Test-Path $PROFILE)) {
+                New-Item -ItemType File -Path $PROFILE -Force | Out-Null
+            }
+            $profileContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
+            if (!$profileContent -or !($profileContent -match "\.cc-completion\.ps1")) {
+                Add-Content -Path $PROFILE -Value "`n# cc 命令补全"
+                Add-Content -Path $PROFILE -Value "if (Test-Path `"$completionFile`") { . `"$completionFile`" }"
+                Write-Host "  ✓ 已添加补全到 Profile（需要重启 PowerShell 生效）" -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host "⚠ Tab 补全更新失败（不影响使用）" -ForegroundColor Yellow
+        }
+        
+        Write-Host ""
         Write-Host "现在运行: " -NoNewline -ForegroundColor Gray
         Write-Host "cc hello" -ForegroundColor Green
     } catch {

@@ -630,10 +630,28 @@ main() {
         # 备份
         [ -f "$script_path" ] && cp "$script_path" "${script_path}.backup" 2>/dev/null
         
-        # 下载
+        # 下载主脚本
         if curl -fsSL "$update_url" -o "$script_path" 2>/dev/null; then
             chmod +x "$script_path"
-            echo -e "\033[1;32m✓ 更新完成！\033[0m"
+            echo -e "\033[1;32m✓ 主脚本更新完成\033[0m"
+            
+            # 更新 Tab 补全脚本
+            local completion_file="$HOME/.cc-completion.bash"
+            if curl -fsSL "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc-completion.bash" -o "$completion_file" 2>/dev/null; then
+                echo -e "\033[1;32m✓ Tab 补全脚本已更新\033[0m"
+                
+                # 检查是否已添加到 .bashrc
+                if ! grep -q "source $completion_file" ~/.bashrc 2>/dev/null; then
+                    echo "" >> ~/.bashrc
+                    echo "# cc 命令补全" >> ~/.bashrc
+                    echo "[ -f \"$completion_file\" ] && source \"$completion_file\"" >> ~/.bashrc
+                    echo -e "\033[1;33m  ✓ 已添加补全到 .bashrc（需要 source ~/.bashrc 生效）\033[0m"
+                fi
+            else
+                echo -e "\033[1;33m⚠ Tab 补全更新失败（不影响使用）\033[0m"
+            fi
+            
+            echo ""
             echo -e "\033[0;37m现在运行: \033[1;32mcc hello\033[0m"
         else
             echo -e "\033[1;31m✗ 更新失败\033[0m"
