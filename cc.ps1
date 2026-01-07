@@ -48,12 +48,12 @@ function Sanitize-Command {
     $chineseCount = ([regex]::Matches($cmd, '[\u4e00-\u9fff]')).Count
     $questionMarkCount = ([regex]::Matches($cmd, '\?')).Count
     
-    # 如果全是问号，直接返回错误
+    # 如果全是问号，返回一个特殊标记，而不是空字符串
     if ($cmd -match '^\?+$') {
         if ($DEBUG) {
             Write-Host "[DEBUG] 检测到全是问号，可能是编码问题" -ForegroundColor Red
         }
-        return ""
+        return "ENCODING_ERROR"
     }
     
     if ($chineseCount -gt 3 -or $questionMarkCount -gt 2) {
@@ -246,6 +246,9 @@ $needInference = $false
 if ([string]::IsNullOrWhiteSpace($cmd)) {
     $needInference = $true
     if ($DEBUG) { Write-Host "[DEBUG] 命令为空，需要推断" -ForegroundColor Yellow }
+} elseif ($cmd -eq "ENCODING_ERROR") {
+    $needInference = $true
+    if ($DEBUG) { Write-Host "[DEBUG] 检测到编码错误标记，需要推断" -ForegroundColor Yellow }
 } elseif ($cmd -match '^\?+$') {
     $needInference = $true
     if ($DEBUG) { Write-Host "[DEBUG] 命令全是问号，需要推断" -ForegroundColor Yellow }
@@ -298,7 +301,7 @@ if ($needInference) {
     }
 }
 
-if ([string]::IsNullOrWhiteSpace($cmd) -or $cmd -match '^\?+$') {
+if ([string]::IsNullOrWhiteSpace($cmd) -or $cmd -eq "ENCODING_ERROR" -or $cmd -match '^\?+$') {
     Write-Host "错误: 模型返回了无效命令（可能是编码问题）" -ForegroundColor Red
     Write-Host ""
     Write-Host "提示: 请编辑 $env:USERPROFILE\cc.ps1" -ForegroundColor Yellow
