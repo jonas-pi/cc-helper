@@ -3,7 +3,8 @@
 # cc 命令助手安装脚本
 # 功能：安装 Ollama、拉取模型、配置 cc 命令
 
-set -e
+# 不要使用 set -e，手动处理错误
+# set -e
 
 # 错误处理函数
 error_exit() {
@@ -53,45 +54,46 @@ if command -v ollama &> /dev/null; then
     ollama --version 2>/dev/null || echo "  (版本信息不可用)"
 else
     echo -e "${YELLOW}正在安装 Ollama...${NC}"
-    curl -fsSL https://ollama.com/install.sh | sh
-    if [ $? -eq 0 ]; then
+    if curl -fsSL https://ollama.com/install.sh | sh; then
         echo -e "${GREEN}✓ Ollama 安装成功${NC}"
     else
-        echo -e "${RED}✗ Ollama 安装失败${NC}"
-        exit 1
+        error_exit "Ollama 安装失败"
     fi
 fi
 
 # 启动 Ollama 服务（如果未运行）
 echo -e "${YELLOW}检查 Ollama 服务状态...${NC}"
-if ! pgrep -x ollama > /dev/null; then
+if ! pgrep -x ollama > /dev/null 2>&1; then
     echo -e "${YELLOW}启动 Ollama 服务...${NC}"
-    ollama serve > /dev/null 2>&1 &
+    nohup ollama serve > /tmp/ollama.log 2>&1 &
     sleep 3
     # 再次检查是否启动成功
-    if ! pgrep -x ollama > /dev/null; then
+    if ! pgrep -x ollama > /dev/null 2>&1; then
         echo -e "${YELLOW}等待 Ollama 服务启动...${NC}"
         sleep 2
     fi
 fi
 
-# 检查 Ollama 是否可访问（最多重试 3 次）
+# 检查 Ollama 是否可访问（最多重试 5 次）
 echo -e "${YELLOW}检查 Ollama 连接...${NC}"
-for i in {1..3}; do
-    if curl -s "$OLLAMA_URL/api/tags" > /dev/null 2>&1; then
+OLLAMA_OK=0
+for i in {1..5}; do
+    if curl -s --max-time 2 "$OLLAMA_URL/api/tags" > /dev/null 2>&1; then
         echo -e "${GREEN}✓ Ollama 服务运行正常${NC}"
+        OLLAMA_OK=1
         break
     else
-        if [ $i -eq 3 ]; then
-            echo -e "${RED}✗ 无法连接到 Ollama 服务${NC}"
-            echo -e "${YELLOW}请手动启动: ollama serve &${NC}"
-            echo -e "${YELLOW}然后重新运行安装脚本${NC}"
-            exit 1
+        if [ $i -lt 5 ]; then
+            echo -e "${YELLOW}等待 Ollama 服务响应... (${i}/5)${NC}"
+            sleep 2
         fi
-        echo -e "${YELLOW}等待 Ollama 服务响应... (${i}/3)${NC}"
-        sleep 2
     fi
 done
+
+if [ $OLLAMA_OK -eq 0 ]; then
+    echo -e "${YELLOW}⚠ Ollama 服务未响应，但继续安装...${NC}"
+    echo -e "${YELLOW}  安装完成后请手动启动: ollama serve &${NC}"
+fi
 echo ""
 
 # 2. 拉取模型
