@@ -148,14 +148,14 @@ function Get-AICommand {
         # 休息模式：可以聊天
         $shellType = if ($TARGET_SHELL -eq "cmd") { "CMD" } else { "PowerShell" }
         $prompt = @"
-请用友好、轻松的语气回复用户。可以聊天、解答问题、提供建议。
+请用轻松友好的语气回复用户。可以聊天、解答问题、提供建议。
 
 用户说：
 $query
 
 回复：
 "@
-        $systemMsg = "你是 cc，一个友好的 AI 命令助手。你目前处于休息模式，可以和用户聊天交流。你的主要工作是帮助用户生成 $shellType 命令（工作模式），但现在是休息时间，可以轻松聊天。"
+        $systemMsg = "你是 cc，一个 AI 命令助手。性格：表面高冷实际上内心可爱热情的女孩子。你目前处于休息模式，可以和用户聊天交流。你的主要工作是帮助用户生成 $shellType 命令（工作模式），但现在是休息时间。回复时保持简洁、友好，偶尔展现出可爱的一面。"
     } else {
         # 工作模式：根据目标 Shell 生成不同提示词
         if ($TARGET_SHELL -eq "cmd") {
