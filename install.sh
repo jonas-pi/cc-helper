@@ -14,54 +14,6 @@ error_exit() {
     exit 1
 }
 
-# 加载动画函数
-spinner() {
-    local pid=$1
-    local delay=0.1
-    local spinstr='|/-\'
-    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
-        local temp=${spinstr#?}
-        printf " [%c]  " "$spinstr"
-        local spinstr=$temp${spinstr%"$temp"}
-        sleep $delay
-        printf "\b\b\b\b\b\b"
-    done
-    printf "    \b\b\b\b"
-}
-
-# 带加载动画的执行函数
-run_with_spinner() {
-    local msg="$1"
-    shift
-    echo -ne "${YELLOW}${msg}${NC}"
-    ("$@" > /tmp/spinner.log 2>&1) &
-    local pid=$!
-    spinner $pid
-    wait $pid
-    local result=$?
-    if [ $result -eq 0 ]; then
-        echo -e "\r${GREEN}✓${NC} ${msg}"
-    else
-        echo -e "\r${RED}✗${NC} ${msg}"
-        cat /tmp/spinner.log 2>/dev/null
-        return $result
-    fi
-}
-
-# 简单的等待动画
-show_progress() {
-    local msg="$1"
-    local duration=${2:-2}
-    local dots=""
-    echo -ne "${YELLOW}${msg}${NC}"
-    for i in {1..3}; do
-        sleep $(echo "scale=2; $duration/3" | bc 2>/dev/null || echo "0.6")
-        dots="${dots}."
-        echo -ne "\r${YELLOW}${msg}${dots}${NC}"
-    done
-    echo -e "\r${GREEN}✓${NC} ${msg}完成"
-}
-
 # 颜色定义
 RED='\033[1;31m'
 GREEN='\033[1;32m'
