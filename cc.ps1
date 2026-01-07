@@ -116,7 +116,7 @@ $query
 
 回复：
 "@
-        $systemMsg = "你是一个友好的AI助手，喜欢和用户聊天交流。"
+        $systemMsg = "你是 cc，一个友好的 AI 命令助手。你目前处于休息模式，可以和用户聊天交流。你的主要工作是帮助用户生成 PowerShell 命令（工作模式），但现在是休息时间，可以轻松聊天。"
     } else {
         # 工作模式：只输出命令
         $prompt = @"
@@ -127,7 +127,7 @@ Request in Chinese: $query
 
 PowerShell Command:
 "@
-        $systemMsg = "You are a PowerShell assistant. Output only the PowerShell command, nothing else."
+        $systemMsg = "You are cc, a PowerShell command assistant. Output only the PowerShell command, nothing else."
     }
     
     # 构建 JSON
