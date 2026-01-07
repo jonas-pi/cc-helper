@@ -1,5 +1,22 @@
 # CC 命令助手 - 更新日志
 
+## v1.9.0 (2026-01-07)
+
+### 新增功能
+- 🪟 **Windows Shell 智能切换**：根据目标 Shell 生成不同语法的命令
+  - PowerShell 模式：生成 PowerShell 命令（Get-Date, Get-Process等）
+  - CMD 模式：生成 CMD 命令（echo %date%, tasklist等）
+- ✨ 新增 `cc -shell` 命令：快速切换目标 Shell
+- ✨ 自动检测父进程：在 CMD 中运行时自动使用 CMD 语法（实验性）
+- ✨ `cc hello` 显示当前目标 Shell
+
+### 优化改进
+- 🔧 Windows 用户体验大幅提升，命令语法更准确
+- 🔧 避免 PowerShell 命令在 CMD 中无法运行的问题
+- 🔧 配置文件持久化目标 Shell 设置
+
+---
+
 ## v1.8.0 (2026-01-07)
 
 ### 新增功能

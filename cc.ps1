@@ -1,7 +1,7 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "1.8.0"
+$VERSION = "1.9.0"
 
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
@@ -12,10 +12,22 @@ $MODEL = "phi3.5"
 $MODE = "work"  # work: 工作模式（只输出命令）, rest: 休息模式（可以聊天）
 $API_TYPE = "ollama"  # ollama, openai, anthropic, custom
 $API_KEY = ""  # API 密钥（如果需要）
+$TARGET_SHELL = "powershell"  # powershell 或 cmd
 
 # 加载配置文件
 if (Test-Path $CONFIG_FILE) {
     . $CONFIG_FILE
+}
+
+# 自动检测目标 Shell（如果未配置）
+if (-not $TARGET_SHELL -or $TARGET_SHELL -eq "") {
+    # 检测父进程来判断运行环境
+    $parentProcess = (Get-Process -Id $PID).Parent
+    if ($parentProcess -and $parentProcess.ProcessName -match "cmd") {
+        $TARGET_SHELL = "cmd"
+    } else {
+        $TARGET_SHELL = "powershell"
+    }
 }
 
 # 检测控制台编码并选择合适的字符
@@ -118,6 +130,7 @@ function Get-AICommand {
     
     if ($MODE -eq "rest") {
         # 休息模式：可以聊天
+        $shellType = if ($TARGET_SHELL -eq "cmd") { "CMD" } else { "PowerShell" }
         $prompt = @"
 请用友好、轻松的语气回复用户。可以聊天、解答问题、提供建议。
 
@@ -126,10 +139,22 @@ $query
 
 回复：
 "@
-        $systemMsg = "你是 cc，一个友好的 AI 命令助手。你目前处于休息模式，可以和用户聊天交流。你的主要工作是帮助用户生成 PowerShell 命令（工作模式），但现在是休息时间，可以轻松聊天。"
+        $systemMsg = "你是 cc，一个友好的 AI 命令助手。你目前处于休息模式，可以和用户聊天交流。你的主要工作是帮助用户生成 $shellType 命令（工作模式），但现在是休息时间，可以轻松聊天。"
     } else {
-        # 工作模式：只输出命令
-        $prompt = @"
+        # 工作模式：根据目标 Shell 生成不同提示词
+        if ($TARGET_SHELL -eq "cmd") {
+            $prompt = @"
+将以下中文需求转换为一条 Windows CMD 命令。
+只输出命令，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
+注意：使用 CMD 语法，不是 PowerShell 语法。
+
+中文需求：$query
+
+CMD 命令：
+"@
+            $systemMsg = "You are cc, a Windows CMD command assistant. Output only the CMD command, nothing else. Use CMD syntax, not PowerShell syntax."
+        } else {
+            $prompt = @"
 Convert the following Chinese request into a single PowerShell command.
 Output ONLY the command, without any explanation, markdown, code blocks, or extra text.
 
@@ -137,7 +162,8 @@ Request in Chinese: $query
 
 PowerShell Command:
 "@
-        $systemMsg = "You are cc, a PowerShell command assistant. Output only the PowerShell command, nothing else."
+            $systemMsg = "You are cc, a PowerShell command assistant. Output only the PowerShell command, nothing else."
+        }
     }
     
     # 构建 JSON
@@ -219,6 +245,14 @@ if ($firstArg -eq "hello") {
         Write-Host " (命令助手)" -ForegroundColor Gray
     }
     
+    # 显示目标 Shell
+    Write-Host "目标 Shell: " -NoNewline -ForegroundColor Gray
+    if ($TARGET_SHELL -eq "cmd") {
+        Write-Host "CMD" -ForegroundColor Yellow
+    } else {
+        Write-Host "PowerShell" -ForegroundColor Blue
+    }
+    
     # 根据 API 类型显示模型列表
     if ($API_TYPE -eq "ollama") {
         # Ollama: 列出本地安装的模型
@@ -288,6 +322,50 @@ if ($firstArg -eq "-r" -or $firstArg -eq "rest" -or $firstArg -eq "chat") {
     
     Write-Host "已切换到休息模式" -ForegroundColor Magenta -NoNewline
     Write-Host " - 放松一下，聊聊天吧~" -ForegroundColor Gray
+    exit 0
+}
+
+# 预设指令: -shell 切换目标 Shell
+if ($firstArg -eq "-shell" -or $firstArg -eq "shell") {
+    Write-Host "当前目标 Shell: " -NoNewline -ForegroundColor Gray
+    if ($TARGET_SHELL -eq "cmd") {
+        Write-Host "CMD" -ForegroundColor Yellow
+    } else {
+        Write-Host "PowerShell" -ForegroundColor Blue
+    }
+    Write-Host ""
+    Write-Host "切换到:" -ForegroundColor Yellow
+    Write-Host "  1. PowerShell" -ForegroundColor Blue
+    Write-Host "  2. CMD" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "请选择 [1/2]: " -ForegroundColor Yellow -NoNewline
+    $choice = Read-Host
+    
+    $newShell = switch ($choice) {
+        "1" { "powershell" }
+        "2" { "cmd" }
+        default { $TARGET_SHELL }
+    }
+    
+    if ($newShell -ne $TARGET_SHELL) {
+        $scriptPath = "$env:USERPROFILE\cc.ps1"
+        $content = Get-Content $scriptPath -Raw
+        $content = $content -replace '^\$TARGET_SHELL = ".*"', "`$TARGET_SHELL = `"$newShell`""
+        
+        $currentEncoding = [Console]::OutputEncoding
+        if ($currentEncoding.CodePage -eq 936) {
+            $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+        } else {
+            $saveEncoding = New-Object System.Text.UTF8Encoding $true
+        }
+        [System.IO.File]::WriteAllText($scriptPath, $content, $saveEncoding)
+        
+        $shellName = if ($newShell -eq "cmd") { "CMD" } else { "PowerShell" }
+        Write-Host "✓ 已切换目标 Shell 到: " -NoNewline -ForegroundColor Green
+        Write-Host "$shellName" -ForegroundColor $(if ($newShell -eq "cmd") { "Yellow" } else { "Blue" })
+    } else {
+        Write-Host "未更改" -ForegroundColor Gray
+    }
     exit 0
 }
 
@@ -647,6 +725,7 @@ if ($firstArg -eq "-config" -or $firstArg -eq "config") {
 `$MODEL = "$MODEL"
 `$API_KEY = "$API_KEY"
 `$MODE = "$MODE"
+`$TARGET_SHELL = "$TARGET_SHELL"
 "@
     
     $configContent | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
@@ -795,6 +874,7 @@ if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $fir
     Write-Host "  模式切换" -ForegroundColor Magenta
     Write-Host "    " -NoNewline; Write-Host "cc -w" -ForegroundColor Green -NoNewline; Write-Host "           工作模式（命令助手，只输出命令）"
     Write-Host "    " -NoNewline; Write-Host "cc -r" -ForegroundColor Green -NoNewline; Write-Host "           休息模式（聊天模式，可以对话）"
+    Write-Host "    " -NoNewline; Write-Host "cc -shell" -ForegroundColor Green -NoNewline; Write-Host "       切换目标 Shell（PowerShell/CMD）"
     Write-Host ""
     Write-Host "  API 配置" -ForegroundColor Magenta
     Write-Host "    " -NoNewline; Write-Host "cc -config" -ForegroundColor Green -NoNewline; Write-Host "      配置 AI API（Ollama/OpenAI/DeepSeek/豆包/通义千问等）"

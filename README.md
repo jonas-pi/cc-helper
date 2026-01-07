@@ -85,6 +85,26 @@ cc 推荐一本书            # 可以对话
 cc -w                    # 切换回工作模式
 ```
 
+### Windows Shell 切换（仅 Windows）
+
+```powershell
+cc -shell                 # 查看并切换目标 Shell
+# 选择 1 (PowerShell) 或 2 (CMD)
+
+# PowerShell 模式示例
+cc 获取当前时间          # 生成: Get-Date
+cc 列出所有进程          # 生成: Get-Process
+
+# CMD 模式示例  
+cc 获取当前时间          # 生成: echo %date% %time%
+cc 列出所有进程          # 生成: tasklist
+```
+
+**说明：**
+- PowerShell 和 CMD 语法差异很大，cc 会根据目标 Shell 生成对应语法的命令
+- 自动检测：在 CMD 中运行时自动使用 CMD 语法（实验性）
+- 手动切换：`cc -shell` 可随时切换目标 Shell
+
 ## 预设命令
 
 | 命令 | 说明 |
@@ -94,6 +114,7 @@ cc -w                    # 切换回工作模式
 | `cc -u` | 更新到最新版本（带版本对比） |
 | `cc -w` | 切换到工作模式（命令助手） |
 | `cc -r` | 切换到休息模式（聊天） |
+| `cc -shell` | 切换目标 Shell（Windows：PowerShell/CMD） |
 | `cc -change` | 切换使用的模型 |
 | `cc -add` | 安装新模型 |
 | `cc -del` | 删除模型 |
