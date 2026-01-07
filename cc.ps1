@@ -1,12 +1,22 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "1.5.0"
+$VERSION = "1.6.0"
 
-# Ollama 配置
+# 配置文件路径
+$CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
+
+# 默认配置
 $OLLAMA_URL = "http://127.0.0.1:11434/v1"
 $MODEL = "phi3.5"
 $MODE = "work"  # work: 工作模式（只输出命令）, rest: 休息模式（可以聊天）
+$API_TYPE = "ollama"  # ollama, openai, anthropic, custom
+$API_KEY = ""  # API 密钥（如果需要）
+
+# 加载配置文件
+if (Test-Path $CONFIG_FILE) {
+    . $CONFIG_FILE
+}
 
 # 检测控制台编码并选择合适的字符
 $consoleEncoding = [Console]::OutputEncoding
@@ -147,11 +157,22 @@ PowerShell Command:
         max_tokens = 64
     } | ConvertTo-Json -Depth 10
 
-    # 调用 Ollama API
+    # 调用 API
     try {
+        $headers = @{
+            "Content-Type" = "application/json"
+        }
+        
+        # 根据 API 类型添加认证
+        if ($API_KEY) {
+            $headers["Authorization"] = "Bearer $API_KEY"
+        } elseif ($API_TYPE -eq "ollama") {
+            $headers["Authorization"] = "Bearer ollama"
+        }
+        
         $response = Invoke-RestMethod -Uri "$OLLAMA_URL/chat/completions" `
             -Method Post `
-            -ContentType "application/json" `
+            -Headers $headers `
             -Body $jsonBody `
             -ErrorAction Stop
 
@@ -492,6 +513,99 @@ if ($firstArg -eq "-add" -or $firstArg -eq "add") {
     exit 0
 }
 
+# 预设指令: -config 配置 API
+if ($firstArg -eq "-config" -or $firstArg -eq "config") {
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+    Write-Host "          CC API 配置 - 成长空间          " -ForegroundColor Cyan
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "当前配置:" -ForegroundColor White
+    Write-Host "  API 类型: " -NoNewline; Write-Host $API_TYPE -ForegroundColor Green
+    Write-Host "  API 地址: " -NoNewline; Write-Host $OLLAMA_URL -ForegroundColor Gray
+    Write-Host "  模型: " -NoNewline; Write-Host $MODEL -ForegroundColor Gray
+    if ($API_KEY) {
+        Write-Host "  API Key: " -NoNewline; Write-Host "$($API_KEY.Substring(0, [Math]::Min(10, $API_KEY.Length)))..." -ForegroundColor Gray
+    } else {
+        Write-Host "  API Key: " -NoNewline; Write-Host "(未设置)" -ForegroundColor Yellow
+    }
+    Write-Host ""
+    Write-Host "可选 API 类型:" -ForegroundColor Magenta
+    Write-Host "  1. " -NoNewline; Write-Host "ollama" -ForegroundColor Green -NoNewline; Write-Host "     - 本地 Ollama（默认，免费）"
+    Write-Host "  2. " -NoNewline; Write-Host "openai" -ForegroundColor Yellow -NoNewline; Write-Host "     - OpenAI GPT 系列"
+    Write-Host "  3. " -NoNewline; Write-Host "anthropic" -ForegroundColor Magenta -NoNewline; Write-Host "  - Anthropic Claude 系列"
+    Write-Host "  4. " -NoNewline; Write-Host "custom" -ForegroundColor Cyan -NoNewline; Write-Host "     - 自定义兼容 OpenAI API 的服务"
+    Write-Host ""
+    Write-Host "选择 API 类型 (1-4，直接回车保持当前): " -ForegroundColor Yellow -NoNewline
+    $apiChoice = Read-Host
+    
+    switch ($apiChoice) {
+        "1" {
+            $API_TYPE = "ollama"
+            Write-Host "Ollama 地址 [http://127.0.0.1:11434/v1]: " -ForegroundColor Yellow -NoNewline
+            $url = Read-Host
+            $OLLAMA_URL = if ($url) { $url } else { "http://127.0.0.1:11434/v1" }
+            $API_KEY = ""
+            Write-Host "模型名称 [phi3.5]: " -ForegroundColor Yellow -NoNewline
+            $model = Read-Host
+            $MODEL = if ($model) { $model } else { "phi3.5" }
+        }
+        "2" {
+            $API_TYPE = "openai"
+            $OLLAMA_URL = "https://api.openai.com/v1"
+            Write-Host "OpenAI API Key: " -ForegroundColor Yellow -NoNewline
+            $API_KEY = Read-Host
+            Write-Host "模型名称 [gpt-3.5-turbo]: " -ForegroundColor Yellow -NoNewline
+            $model = Read-Host
+            $MODEL = if ($model) { $model } else { "gpt-3.5-turbo" }
+        }
+        "3" {
+            $API_TYPE = "anthropic"
+            $OLLAMA_URL = "https://api.anthropic.com/v1"
+            Write-Host "Anthropic API Key: " -ForegroundColor Yellow -NoNewline
+            $API_KEY = Read-Host
+            Write-Host "模型名称 [claude-3-haiku-20240307]: " -ForegroundColor Yellow -NoNewline
+            $model = Read-Host
+            $MODEL = if ($model) { $model } else { "claude-3-haiku-20240307" }
+        }
+        "4" {
+            $API_TYPE = "custom"
+            Write-Host "API 地址: " -ForegroundColor Yellow -NoNewline
+            $OLLAMA_URL = Read-Host
+            Write-Host "API Key (可选，直接回车跳过): " -ForegroundColor Yellow -NoNewline
+            $API_KEY = Read-Host
+            Write-Host "模型名称: " -ForegroundColor Yellow -NoNewline
+            $MODEL = Read-Host
+        }
+        "" {
+            Write-Host "保持当前配置" -ForegroundColor Gray
+            exit 0
+        }
+        default {
+            Write-Host "无效选择" -ForegroundColor Red
+            exit 1
+        }
+    }
+    
+    # 保存配置
+    $configContent = @"
+# CC 配置文件
+# 由 cc -config 自动生成
+
+`$API_TYPE = "$API_TYPE"
+`$OLLAMA_URL = "$OLLAMA_URL"
+`$MODEL = "$MODEL"
+`$API_KEY = "$API_KEY"
+`$MODE = "$MODE"
+"@
+    
+    $configContent | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
+    
+    Write-Host ""
+    Write-Host "✓ 配置已保存到 $CONFIG_FILE" -ForegroundColor Green
+    Write-Host "现在运行: " -NoNewline; Write-Host "cc hello" -ForegroundColor Green
+    exit 0
+}
+
 # 预设指令: -del 删除模型
 if ($firstArg -eq "-del" -or $firstArg -eq "delete" -or $firstArg -eq "rm") {
     $modelList = ollama list 2>$null
@@ -587,6 +701,7 @@ if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $fir
     Write-Host "    " -NoNewline; Write-Host "cc -change" -ForegroundColor Green -NoNewline; Write-Host "      切换使用的模型"
     Write-Host "    " -NoNewline; Write-Host "cc -add" -ForegroundColor Green -NoNewline; Write-Host "         安装新模型"
     Write-Host "    " -NoNewline; Write-Host "cc -del" -ForegroundColor Green -NoNewline; Write-Host "         删除已安装的模型"
+    Write-Host "    " -NoNewline; Write-Host "cc -config" -ForegroundColor Green -NoNewline; Write-Host "      配置 API（接入其他 AI 服务）"
     Write-Host ""
     Write-Host "  更新维护" -ForegroundColor Magenta
     Write-Host "    " -NoNewline; Write-Host "cc -u" -ForegroundColor Green -NoNewline; Write-Host "           更新 cc 脚本到最新版本"

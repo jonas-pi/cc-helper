@@ -1,12 +1,22 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="1.5.0"
+VERSION="1.6.0"
 
-# Ollama 配置
+# 配置文件路径
+CONFIG_FILE="$HOME/.cc_config"
+
+# 默认配置
 OLLAMA_URL="http://127.0.0.1:11434/v1"
 MODEL="qwen2.5:1.5b"
 MODE="work"  # work: 工作模式（只输出命令）, rest: 休息模式（可以聊天）
+API_TYPE="ollama"  # ollama, openai, anthropic, custom
+API_KEY=""  # API 密钥（如果需要）
+
+# 加载配置文件
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+fi
 
 # 检测终端编码并选择合适的字符
 LANG_ENCODING=$(echo $LANG | grep -i "utf")
@@ -119,9 +129,17 @@ ${query}
             max_tokens: 64
         }')
 
+    # 构建 header
+    local auth_header=""
+    if [ -n "$API_KEY" ]; then
+        auth_header="-H \"Authorization: Bearer $API_KEY\""
+    elif [ "$API_TYPE" = "ollama" ]; then
+        auth_header="-H \"Authorization: Bearer ollama\""
+    fi
+    
     local response=$(curl -s -X POST "${OLLAMA_URL}/chat/completions" \
         -H "Content-Type: application/json" \
-        -H "Authorization: Bearer ollama" \
+        $auth_header \
         -d "$json_data" 2>&1)
 
     if [ $? -ne 0 ]; then
@@ -334,6 +352,98 @@ main() {
             echo -e "\033[1;31m安装失败\033[0m"
             exit 1
         fi
+        exit 0
+    fi
+    
+    # 预设指令: -config 配置 API
+    if [ "$first_arg" = "-config" ] || [ "$first_arg" = "config" ]; then
+        echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo -e "\033[1;36m          CC API 配置 - 成长空间          \033[0m"
+        echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo ""
+        echo -e "\033[0;37m当前配置:\033[0m"
+        echo -e "  API 类型: \033[1;32m$API_TYPE\033[0m"
+        echo -e "  API 地址: \033[0;37m$OLLAMA_URL\033[0m"
+        echo -e "  模型: \033[0;37m$MODEL\033[0m"
+        [ -n "$API_KEY" ] && echo -e "  API Key: \033[0;37m${API_KEY:0:10}...\033[0m" || echo -e "  API Key: \033[0;33m(未设置)\033[0m"
+        echo ""
+        echo -e "\033[1;35m可选 API 类型:\033[0m"
+        echo -e "  1. \033[1;32mollama\033[0m     - 本地 Ollama（默认，免费）"
+        echo -e "  2. \033[1;33mopenai\033[0m     - OpenAI GPT 系列"
+        echo -e "  3. \033[1;35manthropic\033[0m  - Anthropic Claude 系列"
+        echo -e "  4. \033[1;36mcustom\033[0m     - 自定义兼容 OpenAI API 的服务"
+        echo ""
+        echo -ne "\033[0;33m选择 API 类型 (1-4，直接回车保持当前): \033[0m"
+        read -r api_choice < /dev/tty
+        
+        case "$api_choice" in
+            1)
+                API_TYPE="ollama"
+                echo -ne "\033[0;33mOllama 地址 [http://127.0.0.1:11434/v1]: \033[0m"
+                read -r url < /dev/tty
+                OLLAMA_URL="${url:-http://127.0.0.1:11434/v1}"
+                API_KEY=""
+                echo -ne "\033[0;33m模型名称 [qwen2.5:1.5b]: \033[0m"
+                read -r model < /dev/tty
+                MODEL="${model:-qwen2.5:1.5b}"
+                ;;
+            2)
+                API_TYPE="openai"
+                OLLAMA_URL="https://api.openai.com/v1"
+                echo -ne "\033[0;33mOpenAI API Key: \033[0m"
+                read -r key < /dev/tty
+                API_KEY="$key"
+                echo -ne "\033[0;33m模型名称 [gpt-3.5-turbo]: \033[0m"
+                read -r model < /dev/tty
+                MODEL="${model:-gpt-3.5-turbo}"
+                ;;
+            3)
+                API_TYPE="anthropic"
+                OLLAMA_URL="https://api.anthropic.com/v1"
+                echo -ne "\033[0;33mAnthropic API Key: \033[0m"
+                read -r key < /dev/tty
+                API_KEY="$key"
+                echo -ne "\033[0;33m模型名称 [claude-3-haiku-20240307]: \033[0m"
+                read -r model < /dev/tty
+                MODEL="${model:-claude-3-haiku-20240307}"
+                ;;
+            4)
+                API_TYPE="custom"
+                echo -ne "\033[0;33mAPI 地址: \033[0m"
+                read -r url < /dev/tty
+                OLLAMA_URL="$url"
+                echo -ne "\033[0;33mAPI Key (可选，直接回车跳过): \033[0m"
+                read -r key < /dev/tty
+                API_KEY="$key"
+                echo -ne "\033[0;33m模型名称: \033[0m"
+                read -r model < /dev/tty
+                MODEL="$model"
+                ;;
+            "")
+                echo -e "\033[0;37m保持当前配置\033[0m"
+                exit 0
+                ;;
+            *)
+                echo -e "\033[1;31m无效选择\033[0m"
+                exit 1
+                ;;
+        esac
+        
+        # 保存配置
+        cat > "$CONFIG_FILE" << EOF
+# CC 配置文件
+# 由 cc -config 自动生成
+
+API_TYPE="$API_TYPE"
+OLLAMA_URL="$OLLAMA_URL"
+MODEL="$MODEL"
+API_KEY="$API_KEY"
+MODE="$MODE"
+EOF
+        
+        echo ""
+        echo -e "\033[1;32m✓ 配置已保存到 $CONFIG_FILE\033[0m"
+        echo -e "\033[0;37m现在运行: \033[1;32mcc hello\033[0m"
         exit 0
     fi
     

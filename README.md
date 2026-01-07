@@ -30,6 +30,7 @@
 ## ✨ 特性
 
 - 🚀 中文自然语言转命令
+- 🌱 **API 接入**：支持 Ollama / OpenAI / Anthropic / 自定义 API
 - 💬 双模式：工作模式（命令生成）+ 休息模式（聊天）
 - 🔄 智能模型管理：切换、安装、删除
 - 🎨 自动编码检测（UTF-8/GBK）
@@ -86,8 +87,39 @@ cc -w                    # 切换回工作模式
 | `cc -change` | 切换使用的模型 |
 | `cc -add` | 安装新模型 |
 | `cc -del` | 删除模型 |
+| `cc -config` | 配置 API（接入其他 AI 服务） |
 
-## 模型管理
+## API 配置 - 成长空间
+
+`cc` 可以接入市面上常见的 AI API，不再局限于本地：
+
+```bash
+cc -config
+```
+
+**支持的 API 类型：**
+
+1. **Ollama**（默认）- 本地运行，完全免费
+2. **OpenAI** - GPT-3.5/GPT-4，需要 API Key
+3. **Anthropic** - Claude 3 系列，需要 API Key
+4. **自定义** - 任何兼容 OpenAI API 格式的服务（Groq, Together AI 等）
+
+**配置示例：**
+
+```bash
+# 切换到 OpenAI
+cc -config
+# 选择 2 → 输入 API Key → 输入模型名称
+
+# 现在 cc 已经使用 OpenAI 了
+cc hello  # 查看当前配置
+```
+
+配置文件：Linux `~/.cc_config` | Windows `%USERPROFILE%\.cc_config.ps1`
+
+---
+
+## 模型管理（Ollama）
 
 ### 查看已安装的模型
 
