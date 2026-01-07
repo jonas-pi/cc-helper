@@ -232,37 +232,69 @@ if ($cmd -match "^ERROR:") {
 # 清理命令
 $cmd = Sanitize-Command $cmd
 
+if ($DEBUG) {
+    Write-Host "[DEBUG] 清理后的命令: [$cmd]" -ForegroundColor Cyan
+    Write-Host "[DEBUG] 命令长度: $($cmd.Length)" -ForegroundColor Cyan
+    if ($cmd.Length -gt 0) {
+        $qCount = ([regex]::Matches($cmd, '\?')).Count
+        Write-Host "[DEBUG] 问号数量: $qCount" -ForegroundColor Cyan
+    }
+}
+
 # 如果清理后的命令无效（全是问号或为空），尝试智能推断
-if ([string]::IsNullOrWhiteSpace($cmd) -or $cmd -match '^\?+$' -or ([regex]::Matches($cmd, '\?')).Count -gt 10) {
+$needInference = $false
+if ([string]::IsNullOrWhiteSpace($cmd)) {
+    $needInference = $true
+    if ($DEBUG) { Write-Host "[DEBUG] 命令为空，需要推断" -ForegroundColor Yellow }
+} elseif ($cmd -match '^\?+$') {
+    $needInference = $true
+    if ($DEBUG) { Write-Host "[DEBUG] 命令全是问号，需要推断" -ForegroundColor Yellow }
+} elseif ($cmd.Length -gt 0 -and ([regex]::Matches($cmd, '\?')).Count -gt 10) {
+    $needInference = $true
+    if ($DEBUG) { Write-Host "[DEBUG] 问号数量过多，需要推断" -ForegroundColor Yellow }
+}
+
+if ($needInference) {
     if ($DEBUG) {
-        Write-Host "[DEBUG] 命令无效，尝试根据原始查询智能推断..." -ForegroundColor Yellow
+        Write-Host "[DEBUG] 开始智能推断，原始查询: [$userQuery]" -ForegroundColor Yellow
     }
     
     # 根据原始查询关键词推断命令
     $inferredCmd = ""
     if ($userQuery -match '目录|路径|位置|在哪') {
         $inferredCmd = "Get-Location"
+        if ($DEBUG) { Write-Host "[DEBUG] 匹配到关键词: 目录/路径/位置/在哪" -ForegroundColor Green }
     } elseif ($userQuery -match '文件.*列表|列出.*文件|查看.*文件|所有文件') {
         $inferredCmd = "Get-ChildItem"
+        if ($DEBUG) { Write-Host "[DEBUG] 匹配到关键词: 文件列表" -ForegroundColor Green }
     } elseif ($userQuery -match '进程|程序|运行中') {
         $inferredCmd = "Get-Process"
+        if ($DEBUG) { Write-Host "[DEBUG] 匹配到关键词: 进程/程序" -ForegroundColor Green }
     } elseif ($userQuery -match '服务') {
         $inferredCmd = "Get-Service"
+        if ($DEBUG) { Write-Host "[DEBUG] 匹配到关键词: 服务" -ForegroundColor Green }
     } elseif ($userQuery -match '日期|时间|现在几点') {
         $inferredCmd = "Get-Date"
+        if ($DEBUG) { Write-Host "[DEBUG] 匹配到关键词: 日期/时间" -ForegroundColor Green }
     } elseif ($userQuery -match '网络|IP|地址') {
         $inferredCmd = "Get-NetIPAddress"
+        if ($DEBUG) { Write-Host "[DEBUG] 匹配到关键词: 网络/IP" -ForegroundColor Green }
     } elseif ($userQuery -match '端口|监听') {
         $inferredCmd = "Get-NetTCPConnection"
+        if ($DEBUG) { Write-Host "[DEBUG] 匹配到关键词: 端口/监听" -ForegroundColor Green }
     } elseif ($userQuery -match '磁盘|空间|容量') {
         $inferredCmd = "Get-PSDrive"
+        if ($DEBUG) { Write-Host "[DEBUG] 匹配到关键词: 磁盘/空间" -ForegroundColor Green }
     }
     
     if ($inferredCmd) {
-        if ($DEBUG) {
-            Write-Host "[DEBUG] 推断的命令: $inferredCmd" -ForegroundColor Green
-        }
+        Write-Host ""
+        Write-Host "⚠ 由于编码问题，使用智能推断的命令" -ForegroundColor Yellow
         $cmd = $inferredCmd
+    } else {
+        if ($DEBUG) {
+            Write-Host "[DEBUG] 未匹配到任何关键词" -ForegroundColor Red
+        }
     }
 }
 
