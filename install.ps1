@@ -95,7 +95,7 @@ Write-Yellow "检查 Ollama 连接..."
 $OLLAMA_OK = $false
 for ($i = 1; $i -le 5; $i++) {
     try {
-        $response = Invoke-WebRequest -Uri "$OLLAMA_URL/api/tags" -TimeoutSec 2 -ErrorAction Stop
+        $response = Invoke-WebRequest -Uri "$OLLAMA_URL/api/tags" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
         Write-Green "✓ Ollama 服务运行正常"
         $OLLAMA_OK = $true
         break
@@ -163,15 +163,42 @@ function Sanitize-Command {
     $cmd = $cmd.Trim()
     # 移除末尾的反斜杠
     $cmd = $cmd -replace '\\$', ''
-    # 移除可能的提示词残留（如果模型返回了提示词的一部分）
-    $cmd = $cmd -replace '^Windows Power.*?:', '' -replace '^只输出命令.*?:', '' -replace '^命令.*?:', '' -replace '^将中文需求.*?:', ''
+    
     # 只取第一行
     $lines = $cmd -split "`n", 2
     $cmd = $lines[0].Trim()
+    
+    # 移除可能的提示词残留（更全面的匹配）
+    $cmd = $cmd -replace '^Windows Power.*?:', '' -replace '^只输出命令.*?:', '' -replace '^命令.*?:', '' -replace '^将中文需求.*?:', ''
+    $cmd = $cmd -replace '^你是一个.*?:', '' -replace '^转换助手.*?:', '' -replace '^Windows.*?:', ''
+    
     # 移除可能的冒号和后续文本（如果模型返回了 "命令: xxx" 格式）
     if ($cmd -match '^[^:]+:\s*(.+)$') {
         $cmd = $matches[1].Trim()
     }
+    
+    # 如果命令包含大量中文字符或问号（可能是编码问题），尝试提取命令部分
+    $chineseCount = ([regex]::Matches($cmd, '[\u4e00-\u9fff]')).Count
+    $questionMarkCount = ([regex]::Matches($cmd, '\?')).Count
+    
+    if ($chineseCount -gt 5 -or $questionMarkCount -gt 3) {
+        # 尝试提取第一个看起来像命令的部分
+        # 匹配以字母开头的命令（可能包含连字符、下划线、点号）
+        if ($cmd -match '([A-Za-z][A-Za-z0-9\-_\.]*\s+[^\u4e00-\u9fff\n]*)') {
+            $potentialCmd = $matches[1].Trim()
+            if ($potentialCmd.Length -gt 0 -and $potentialCmd.Length -lt $cmd.Length) {
+                $cmd = $potentialCmd
+            }
+        }
+        # 如果还是包含中文字符，尝试提取最后一个看起来像命令的部分
+        if ($cmd -match '.*?([A-Za-z][A-Za-z0-9\-_\.]*\s*.*?)$') {
+            $potentialCmd = $matches[1].Trim()
+            if ($potentialCmd.Length -gt 0) {
+                $cmd = $potentialCmd
+            }
+        }
+    }
+    
     # 再次清理首尾空白
     $cmd = $cmd.Trim()
     return $cmd
@@ -181,19 +208,20 @@ function Sanitize-Command {
 function Get-AICommand {
     param([string]$query)
     
-    # 构建提示词
+    # 构建提示词（简化，避免模型返回提示词本身）
     $prompt = @"
 将中文需求转换为一条可直接执行的 Windows PowerShell 命令。
 只输出命令，不要解释、不要 Markdown、不要占位符、不要代码块标记。
 如果缺少参数，使用最常见的默认命令。
 注意：代理设置通常指 HTTP/HTTPS 代理（环境变量 http_proxy, https_proxy），不是 DNS 设置。
 
-需求：$query
+需求：
+$query
 
 命令：
 "@
 
-    $systemMsg = "你是一个 Windows PowerShell 命令转换助手。只输出命令，不要任何解释，不要 Markdown 格式，不要代码块标记。"
+    $systemMsg = "你是一个 Windows PowerShell 命令转换助手。只输出命令，不要任何解释。"
     
     # 构建 JSON
     $jsonBody = @{
@@ -209,7 +237,7 @@ function Get-AICommand {
             }
         )
         temperature = 0
-        max_tokens = 64
+        max_tokens = 128
     } | ConvertTo-Json -Depth 10
 
     # 调用 Ollama API
@@ -224,10 +252,33 @@ function Get-AICommand {
             $content = $response.choices[0].message.content
             # 确保返回的是字符串，并处理可能的编码问题
             if ($content -is [string]) {
-                return $content.Trim()
+                $content = $content.Trim()
             } else {
-                return $content.ToString().Trim()
+                $content = $content.ToString().Trim()
             }
+            
+            # 如果内容包含中文字符且看起来像是提示词，尝试提取命令部分
+            # 常见的 PowerShell 命令模式
+            $commonCommands = @('Get-Location', 'Get-ChildItem', 'Set-Location', 'Get-Process', 
+                               'Get-Service', 'Get-Content', 'Select-String', 'Where-Object',
+                               'pwd', 'ls', 'dir', 'cd', 'cat', 'type', 'findstr', 'grep')
+            
+            foreach ($cmdPattern in $commonCommands) {
+                if ($content -match $cmdPattern) {
+                    # 提取从命令开始到行尾的内容
+                    $match = [regex]::Match($content, "$cmdPattern.*")
+                    if ($match.Success) {
+                        $extracted = $match.Value.Trim()
+                        # 只取第一行
+                        $extracted = ($extracted -split "`n")[0].Trim()
+                        if ($extracted.Length -gt 0) {
+                            return $extracted
+                        }
+                    }
+                }
+            }
+            
+            return $content
         } else {
             return "ERROR: empty model output"
         }
