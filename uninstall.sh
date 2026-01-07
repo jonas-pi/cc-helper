@@ -65,26 +65,63 @@ echo ""
 # 3. 删除模型
 echo -e "${YELLOW}[3/6] 删除 Ollama 模型...${NC}"
 if command -v ollama &> /dev/null; then
+    # 确保 Ollama 服务正在运行（列出模型需要）
+    if ! pgrep -x ollama > /dev/null 2>&1; then
+        echo -e "  ${YELLOW}启动 Ollama 服务以列出模型...${NC}"
+        nohup ollama serve > /dev/null 2>&1 &
+        sleep 2
+    fi
+    
+    # 列出所有模型
+    local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+    
+    if [ -n "$models" ]; then
+        echo -e "  ${GREEN}已安装的模型：${NC}"
+        echo "$models" | nl -w2 -s'. '
+        echo ""
+        echo -e "  ${YELLOW}请选择要删除的模型（输入序号，多个用空格分隔，或输入 'all' 删除全部，直接回车跳过）：${NC}"
+        read -r selection
+        
+        if [ -n "$selection" ]; then
+            if [ "$selection" = "all" ] || [ "$selection" = "ALL" ]; then
+                # 删除所有模型
+                echo "$models" | while read -r model; do
+                    echo -e "  ${YELLOW}正在删除模型 ${model}...${NC}"
+                    if ollama rm "$model" 2>/dev/null; then
+                        echo -e "  ${GREEN}✓ ${model} 已删除${NC}"
+                    else
+                        echo -e "  ${RED}✗ ${model} 删除失败${NC}"
+                    fi
+                    sleep 0.5
+                done
+            else
+                # 删除选定的模型
+                for num in $selection; do
+                    local model=$(echo "$models" | sed -n "${num}p")
+                    if [ -n "$model" ]; then
+                        echo -e "  ${YELLOW}正在删除模型 ${model}...${NC}"
+                        if ollama rm "$model" 2>/dev/null; then
+                            echo -e "  ${GREEN}✓ ${model} 已删除${NC}"
+                        else
+                            echo -e "  ${RED}✗ ${model} 删除失败${NC}"
+                        fi
+                        sleep 0.5
+                    fi
+                done
+            fi
+        else
+            echo -e "  ${YELLOW}跳过模型删除${NC}"
+        fi
+    else
+        echo -e "  ${YELLOW}  未找到已安装的模型${NC}"
+    fi
+    
     # 停止 Ollama 服务
     if pgrep -x ollama > /dev/null 2>&1; then
         echo -e "  ${YELLOW}停止 Ollama 服务...${NC}"
         pkill -x ollama 2>/dev/null || true
         sleep 2
         echo -e "  ${GREEN}✓ Ollama 服务已停止${NC}"
-    fi
-    
-    sleep 0.5
-    # 删除模型
-    if ollama list 2>/dev/null | grep -q "qwen2.5:1.5b"; then
-        echo -e "  ${YELLOW}正在删除模型 qwen2.5:1.5b...${NC}"
-        if ollama rm qwen2.5:1.5b 2>/dev/null; then
-            sleep 1
-            echo -e "  ${GREEN}✓ 模型已删除${NC}"
-        else
-            echo -e "  ${YELLOW}  模型删除失败，可能正在使用中${NC}"
-        fi
-    else
-        echo -e "  ${YELLOW}  模型不存在，跳过${NC}"
     fi
 else
     echo -e "  ${YELLOW}  Ollama 未安装，跳过${NC}"

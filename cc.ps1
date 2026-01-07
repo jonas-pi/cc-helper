@@ -93,25 +93,15 @@ PowerShell Command:
 }
 
 # 主函数
-if ($args.Count -lt 1) {
-    Write-Host "用法: cc <中文需求>" -ForegroundColor Gray
-    Write-Host "示例: cc 我在哪个目录" -ForegroundColor Gray
-    Write-Host "" -ForegroundColor Gray
-    Write-Host "预设指令:" -ForegroundColor Gray
-    Write-Host "  cc hello    - 显示版本信息" -ForegroundColor Gray
-    Write-Host "  cc -u       - 更新脚本" -ForegroundColor Gray
-    exit 1
-}
+$firstArg = if ($args.Count -gt 0) { $args[0] } else { "" }
 
-$firstArg = $args[0]
-
-# 预设指令: hello
+# 预设指令: hello（不依赖模型）
 if ($firstArg -eq "hello") {
     Write-Host "cc v1.0 | $MODEL" -ForegroundColor Gray
     exit 0
 }
 
-# 预设指令: -u 更新
+# 预设指令: -u 更新（不依赖模型）
 if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") {
     Write-Host "updating..." -ForegroundColor Gray
     try {
@@ -144,6 +134,17 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
         exit 1
     }
     exit 0
+}
+
+# 帮助信息
+if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help") {
+    Write-Host "用法: cc <中文需求>" -ForegroundColor Gray
+    Write-Host "示例: cc 我在哪个目录" -ForegroundColor Gray
+    Write-Host "" -ForegroundColor Gray
+    Write-Host "预设指令:" -ForegroundColor Gray
+    Write-Host "  cc hello    - 显示版本信息" -ForegroundColor Gray
+    Write-Host "  cc -u       - 更新脚本" -ForegroundColor Gray
+    exit 1
 }
 
 $userQuery = $args -join " "

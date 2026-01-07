@@ -86,6 +86,71 @@ Write-Output ""
 # 4. 删除模型
 Write-Yellow "[4/6] 删除 Ollama 模型..."
 if (Get-Command ollama -ErrorAction SilentlyContinue) {
+    # 确保 Ollama 服务正在运行（列出模型需要）
+    $ollamaProcess = Get-Process -Name ollama -ErrorAction SilentlyContinue
+    if (-not $ollamaProcess) {
+        Write-Yellow "启动 Ollama 服务以列出模型..."
+        Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+    }
+    
+    # 列出所有模型
+    $modelOutput = ollama list 2>$null
+    if ($modelOutput) {
+        $models = $modelOutput | Select-Object -Skip 1 | ForEach-Object {
+            ($_ -split '\s+')[0]
+        } | Where-Object { $_ -ne "" }
+        
+        if ($models.Count -gt 0) {
+            Write-Green "已安装的模型："
+            for ($i = 0; $i -lt $models.Count; $i++) {
+                Write-Output "$($i + 1). $($models[$i])"
+            }
+            Write-Output ""
+            Write-Yellow "请选择要删除的模型（输入序号，多个用空格分隔，或输入 'all' 删除全部，直接回车跳过）："
+            $selection = Read-Host
+            
+            if ($selection) {
+                if ($selection -eq "all" -or $selection -eq "ALL") {
+                    # 删除所有模型
+                    foreach ($model in $models) {
+                        Write-Yellow "正在删除模型 $model..."
+                        ollama rm $model 2>$null
+                        if ($LASTEXITCODE -eq 0) {
+                            Write-Green "✓ $model 已删除"
+                        } else {
+                            Write-Red "✗ $model 删除失败"
+                        }
+                        Start-Sleep -Milliseconds 500
+                    }
+                } else {
+                    # 删除选定的模型
+                    $numbers = $selection -split '\s+' | Where-Object { $_ -match '^\d+$' }
+                    foreach ($num in $numbers) {
+                        $index = [int]$num - 1
+                        if ($index -ge 0 -and $index -lt $models.Count) {
+                            $model = $models[$index]
+                            Write-Yellow "正在删除模型 $model..."
+                            ollama rm $model 2>$null
+                            if ($LASTEXITCODE -eq 0) {
+                                Write-Green "✓ $model 已删除"
+                            } else {
+                                Write-Red "✗ $model 删除失败"
+                            }
+                            Start-Sleep -Milliseconds 500
+                        }
+                    }
+                }
+            } else {
+                Write-Yellow "跳过模型删除"
+            }
+        } else {
+            Write-Yellow "  未找到已安装的模型"
+        }
+    } else {
+        Write-Yellow "  未找到已安装的模型"
+    }
+    
     # 停止 Ollama 服务
     $ollamaProcess = Get-Process -Name ollama -ErrorAction SilentlyContinue
     if ($ollamaProcess) {
@@ -93,22 +158,6 @@ if (Get-Command ollama -ErrorAction SilentlyContinue) {
         Stop-Process -Name ollama -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 2
         Write-Green "✓ Ollama 服务已停止"
-    }
-    
-    Start-Sleep -Milliseconds 500
-    # 检查并删除模型
-    $modelList = ollama list 2>$null
-    if ($modelList -match $OLLAMA_MODEL) {
-        Write-Yellow "正在删除模型 $OLLAMA_MODEL..."
-        ollama rm $OLLAMA_MODEL 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            Start-Sleep -Seconds 1
-            Write-Green "✓ 模型已删除"
-        } else {
-            Write-Yellow "  模型删除失败，可能正在使用中"
-        }
-    } else {
-        Write-Yellow "  模型不存在，跳过"
     }
 } else {
     Write-Yellow "  Ollama 未安装，跳过"

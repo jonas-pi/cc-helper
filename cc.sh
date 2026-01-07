@@ -67,26 +67,17 @@ ${query}
 
 # 主函数
 main() {
-    if [ $# -lt 1 ]; then
-        echo "用法: cc <中文需求>"
-        echo "示例: cc 查看当前目录"
-        echo ""
-        echo "预设指令："
-        echo "  cc hello    - 显示版本信息"
-        echo "  cc -u       - 更新脚本"
-        exit 1
-    fi
-
     local first_arg="$1"
     
-    # 预设指令: hello
+    # 预设指令: hello（不依赖模型）
     if [ "$first_arg" = "hello" ]; then
         echo -e "\033[0;37mcc v1.0 | $MODEL\033[0m"
         exit 0
     fi
     
-    # 预设指令: -u 更新
+    # 预设指令: -u 更新（不依赖模型）
     if [ "$first_arg" = "-u" ] || [ "$first_arg" = "update" ] || [ "$first_arg" = "--update" ]; then
+        echo -e "\033[0;37mupdating...\033[0m"
         local update_url="https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.sh"
         local script_path="$HOME/cc.sh"
         
@@ -102,6 +93,17 @@ main() {
             exit 1
         fi
         exit 0
+    fi
+    
+    # 帮助信息
+    if [ $# -lt 1 ] || [ "$first_arg" = "-h" ] || [ "$first_arg" = "--help" ]; then
+        echo "用法: cc <中文需求>"
+        echo "示例: cc 查看当前目录"
+        echo ""
+        echo "预设指令："
+        echo "  cc hello    - 显示版本信息"
+        echo "  cc -u       - 更新脚本"
+        exit 1
     fi
 
     local user_query="$*"
