@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="0.9.0"
+VERSION="0.9.1"
 
 # 配置文件路径
 CONFIG_FILE="$HOME/.cc_config"
@@ -134,18 +134,23 @@ ${query}
             max_tokens: 64
         }')
 
-    # 构建 header
-    local auth_header=""
+    # 发送 API 请求
+    local response
     if [ -n "$API_KEY" ]; then
-        auth_header="-H \"Authorization: Bearer $API_KEY\""
+        response=$(curl -s -X POST "${OLLAMA_URL}/chat/completions" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $API_KEY" \
+            -d "$json_data" 2>&1)
     elif [ "$API_TYPE" = "ollama" ]; then
-        auth_header="-H \"Authorization: Bearer ollama\""
+        response=$(curl -s -X POST "${OLLAMA_URL}/chat/completions" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ollama" \
+            -d "$json_data" 2>&1)
+    else
+        response=$(curl -s -X POST "${OLLAMA_URL}/chat/completions" \
+            -H "Content-Type: application/json" \
+            -d "$json_data" 2>&1)
     fi
-    
-    local response=$(curl -s -X POST "${OLLAMA_URL}/chat/completions" \
-        -H "Content-Type: application/json" \
-        $auth_header \
-        -d "$json_data" 2>&1)
 
     if [ $? -ne 0 ]; then
         echo "ERROR: curl 请求失败"
@@ -258,20 +263,24 @@ main() {
                 max_tokens: 5
             }')
         
-        # 构建 header
-        local auth_header=""
-        if [ -n "$API_KEY" ]; then
-            auth_header="-H \"Authorization: Bearer $API_KEY\""
-        elif [ "$API_TYPE" = "ollama" ]; then
-            auth_header="-H \"Authorization: Bearer ollama\""
-        fi
-        
         # 发送测试请求
         local start_time=$(date +%s%N)
-        local response=$(timeout 30 curl -s -w "\n%{http_code}" -X POST "${OLLAMA_URL}/chat/completions" \
-            -H "Content-Type: application/json" \
-            $auth_header \
-            -d "$test_data" 2>&1)
+        local response
+        if [ -n "$API_KEY" ]; then
+            response=$(timeout 30 curl -s -w "\n%{http_code}" -X POST "${OLLAMA_URL}/chat/completions" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $API_KEY" \
+                -d "$test_data" 2>&1)
+        elif [ "$API_TYPE" = "ollama" ]; then
+            response=$(timeout 30 curl -s -w "\n%{http_code}" -X POST "${OLLAMA_URL}/chat/completions" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer ollama" \
+                -d "$test_data" 2>&1)
+        else
+            response=$(timeout 30 curl -s -w "\n%{http_code}" -X POST "${OLLAMA_URL}/chat/completions" \
+                -H "Content-Type: application/json" \
+                -d "$test_data" 2>&1)
+        fi
         local end_time=$(date +%s%N)
         local duration=$(( (end_time - start_time) / 1000000 ))
         
