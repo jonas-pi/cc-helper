@@ -20,7 +20,7 @@ function Write-Yellow($text) { Write-ColorOutput Yellow $text }
 function Write-Blue($text) { Write-ColorOutput Blue $text }
 
 # 配置
-$OLLAMA_MODEL = "qwen2.5:1.5b"
+$OLLAMA_MODEL = "phi3.5"
 $OLLAMA_URL = "http://127.0.0.1:11434"
 $CC_SCRIPT_PATH = "$env:USERPROFILE\cc.ps1"
 $BIN_DIR = "$env:USERPROFILE\bin"
