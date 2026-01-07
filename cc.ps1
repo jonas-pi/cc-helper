@@ -1,7 +1,7 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "0.2.1"
+$VERSION = "0.2.2"
 
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
@@ -17,7 +17,17 @@ $STREAM = $false  # true: 流式传输（逐字显示）, false: 一次性返回
 
 # 加载配置文件
 if (Test-Path $CONFIG_FILE) {
-    . $CONFIG_FILE
+    try {
+        . $CONFIG_FILE
+        # 确保 MODE 变量被正确设置（如果配置文件加载失败，使用默认值）
+        if (-not $MODE -or $MODE -eq "") {
+            $MODE = "work"
+        }
+    } catch {
+        # 如果配置文件加载失败，使用默认值
+        Write-Host "警告: 配置文件加载失败，使用默认设置" -ForegroundColor Yellow
+        $MODE = "work"
+    }
 }
 
 # 自动检测目标 Shell（如果未配置）
@@ -154,21 +164,25 @@ $query
 只输出命令，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
 注意：使用 CMD 语法，不是 PowerShell 语法。
 
+如果输入不是命令需求（比如问候语、闲聊等），请输出 "NOT_A_COMMAND"。
+
 中文需求：$query
 
 CMD 命令：
 "@
-            $systemMsg = "You are cc, a Windows CMD command assistant. Output only the CMD command, nothing else. Use CMD syntax, not PowerShell syntax."
+            $systemMsg = "You are cc, a Windows CMD command assistant. If the input is a command request, output only the CMD command. If the input is not a command request (like greetings or casual chat), output 'NOT_A_COMMAND'. Use CMD syntax, not PowerShell syntax."
         } else {
             $prompt = @"
-Convert the following Chinese request into a single PowerShell command.
-Output ONLY the command, without any explanation, markdown, code blocks, or extra text.
+将以下中文需求转换为一条 PowerShell 命令。
+只输出命令，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
 
-Request in Chinese: $query
+如果输入不是命令需求（比如问候语、闲聊等），请输出 "NOT_A_COMMAND"。
 
-PowerShell Command:
+中文需求：$query
+
+PowerShell 命令：
 "@
-            $systemMsg = "You are cc, a PowerShell command assistant. Output only the PowerShell command, nothing else."
+            $systemMsg = "You are cc, a PowerShell command assistant. If the input is a command request, output only the PowerShell command. If the input is not a command request (like greetings or casual chat), output 'NOT_A_COMMAND'."
         }
     }
     
@@ -493,7 +507,15 @@ if ($firstArg -eq "-w" -or $firstArg -eq "work") {
     # 更新配置文件中的 MODE
     if (Test-Path $CONFIG_FILE) {
         $content = Get-Content $CONFIG_FILE -Raw
-        $content = $content -replace '^\$MODE = ".*"', '$MODE = "work"'
+        
+        # 使用更健壮的正则表达式匹配 MODE 设置（支持多行模式）
+        if ($content -match '(?m)^\s*\$MODE\s*=\s*".*"') {
+            # 如果找到 MODE 设置，替换它
+            $content = $content -replace '(?m)^\s*\$MODE\s*=\s*".*"', '$MODE = "work"'
+        } else {
+            # 如果找不到，添加到文件末尾
+            $content = $content.TrimEnd() + "`n`$MODE = `"work`""
+        }
         
         $currentEncoding = [Console]::OutputEncoding
         if ($currentEncoding.CodePage -eq 936) {
@@ -507,6 +529,9 @@ if ($firstArg -eq "-w" -or $firstArg -eq "work") {
         '$MODE = "work"' | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
     }
     
+    # 立即更新当前会话的 MODE 变量
+    $script:MODE = "work"
+    
     Write-Host "已切换到工作模式" -ForegroundColor Cyan -NoNewline
     Write-Host " - 专注命令，高效执行" -ForegroundColor Gray
     exit 0
@@ -517,7 +542,15 @@ if ($firstArg -eq "-r" -or $firstArg -eq "rest" -or $firstArg -eq "chat") {
     # 更新配置文件中的 MODE
     if (Test-Path $CONFIG_FILE) {
         $content = Get-Content $CONFIG_FILE -Raw
-        $content = $content -replace '^\$MODE = ".*"', '$MODE = "rest"'
+        
+        # 使用更健壮的正则表达式匹配 MODE 设置（支持多行模式）
+        if ($content -match '(?m)^\s*\$MODE\s*=\s*".*"') {
+            # 如果找到 MODE 设置，替换它
+            $content = $content -replace '(?m)^\s*\$MODE\s*=\s*".*"', '$MODE = "rest"'
+        } else {
+            # 如果找不到，添加到文件末尾
+            $content = $content.TrimEnd() + "`n`$MODE = `"rest`""
+        }
         
         $currentEncoding = [Console]::OutputEncoding
         if ($currentEncoding.CodePage -eq 936) {
@@ -530,6 +563,9 @@ if ($firstArg -eq "-r" -or $firstArg -eq "rest" -or $firstArg -eq "chat") {
         # 如果配置文件不存在，创建它
         '$MODE = "rest"' | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
     }
+    
+    # 立即更新当前会话的 MODE 变量
+    $script:MODE = "rest"
     
     Write-Host "已切换到休息模式" -ForegroundColor Magenta -NoNewline
     Write-Host " - 放松一下，聊聊天吧~" -ForegroundColor Gray
@@ -1287,6 +1323,15 @@ $cmd = Sanitize-Command $cmd
 if ([string]::IsNullOrWhiteSpace($cmd)) {
     Write-Host "ERROR: 空命令" -ForegroundColor Red
     exit 1
+}
+
+# 检查是否是"非命令"标记
+if ($cmd -eq "NOT_A_COMMAND" -or $cmd -match "^NOT_A_COMMAND") {
+    Write-Host "别闹，好好工作。" -ForegroundColor Yellow
+    Write-Host "想聊天？用 " -NoNewline -ForegroundColor Gray
+    Write-Host "cc -r" -NoNewline -ForegroundColor Green
+    Write-Host " 切换到休息模式~" -ForegroundColor Gray
+    exit 0
 }
 
 Write-Host "> $cmd" -ForegroundColor Gray
