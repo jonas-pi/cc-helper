@@ -506,6 +506,25 @@ echo 'alias cc="bash ~/cc.sh"' >> "$BASHRC"
 echo -e "  ${GREEN}✓ 已设置 cc 别名${NC}"
 echo ""
 
+# 4. 安装 Tab 补全功能
+echo -e "${YELLOW}[4/4] 安装 Tab 补全功能...${NC}"
+COMPLETION_FILE="$HOME/.cc-completion.bash"
+curl -fsSL "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc-completion.bash" -o "$COMPLETION_FILE" 2>/dev/null
+if [ $? -eq 0 ]; then
+    # 添加到 .bashrc（如果还没有）
+    if ! grep -q "source $COMPLETION_FILE" ~/.bashrc 2>/dev/null; then
+        echo "" >> ~/.bashrc
+        echo "# cc 命令补全" >> ~/.bashrc
+        echo "[ -f \"$COMPLETION_FILE\" ] && source \"$COMPLETION_FILE\"" >> ~/.bashrc
+        echo -e "  ${GREEN}✓ 已安装 Tab 补全功能${NC}"
+    else
+        echo -e "  ${GREEN}✓ Tab 补全已存在${NC}"
+    fi
+else
+    echo -e "  ${YELLOW}⚠ Tab 补全安装失败（不影响使用）${NC}"
+fi
+echo ""
+
 # 完成
 echo -e "${BLUE}========================================${NC}"
 echo -e "${GREEN}安装完成！${NC}"
@@ -517,7 +536,8 @@ echo -e "   ${GREEN}source ~/.bashrc${NC}"
 echo ""
 echo -e "2. 或者重新打开终端"
 echo ""
-echo -e "3. 测试命令："
+echo -e "3. 测试命令（支持 Tab 补全）："
+echo -e "   ${GREEN}cc -<Tab>${NC}  ${YELLOW}# 按 Tab 键查看所有命令${NC}"
 echo -e "   ${GREEN}cc 查看当前目录${NC}"
 echo ""
 echo -e "${YELLOW}配置信息：${NC}"

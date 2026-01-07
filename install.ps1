@@ -614,6 +614,33 @@ $ccBatPath = "$BIN_DIR\cc.bat"
 Write-Green "✓ 已创建 $ccBatPath"
 Write-Output ""
 
+# 4. 安装 Tab 补全功能
+Write-Yellow "[4/4] 安装 Tab 补全功能..."
+$completionFile = "$env:USERPROFILE\.cc-completion.ps1"
+try {
+    $webClient = New-Object System.Net.WebClient
+    $webClient.Encoding = [System.Text.Encoding]::UTF8
+    $completionContent = $webClient.DownloadString("https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc-completion.ps1")
+    [System.IO.File]::WriteAllText($completionFile, $completionContent, [System.Text.Encoding]::UTF8)
+    
+    # 添加到 PowerShell Profile（如果还没有）
+    if (!(Test-Path $PROFILE)) {
+        New-Item -ItemType File -Path $PROFILE -Force | Out-Null
+    }
+    
+    $profileContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
+    if (!$profileContent -or !($profileContent -match "\.cc-completion\.ps1")) {
+        Add-Content -Path $PROFILE -Value "`n# cc 命令补全"
+        Add-Content -Path $PROFILE -Value "if (Test-Path `"$completionFile`") { . `"$completionFile`" }"
+        Write-Green "  ✓ 已安装 Tab 补全功能"
+    } else {
+        Write-Green "  ✓ Tab 补全已存在"
+    }
+} catch {
+    Write-Yellow "  ⚠ Tab 补全安装失败（不影响使用）"
+}
+Write-Output ""
+
 # 完成
 Write-Output ""
 Write-Output ""
@@ -628,7 +655,7 @@ Write-ColorOutput Yellow "╔═════════════════
 Write-ColorOutput Yellow "║                                                                ║"
 Write-ColorOutput Yellow "║              ✓ cc 命令已就绪！                                  ║"
 Write-ColorOutput Yellow "║                                                                ║"
-Write-ColorOutput Yellow "║  可在以下环境中使用：                                           ║"
+Write-ColorOutput Yellow "║  可在以下环境中使用（支持 Tab 补全）：                          ║"
 Write-ColorOutput Green   "║    • PowerShell                                               ║"
 Write-ColorOutput Green   "║    • CMD（命令提示符）                                         ║"
 Write-ColorOutput Yellow "║                                                                ║"
