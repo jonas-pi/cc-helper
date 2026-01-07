@@ -728,11 +728,13 @@ if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $fir
     Write-Host "    " -NoNewline; Write-Host "cc -w" -ForegroundColor Green -NoNewline; Write-Host "           工作模式（命令助手，只输出命令）"
     Write-Host "    " -NoNewline; Write-Host "cc -r" -ForegroundColor Green -NoNewline; Write-Host "           休息模式（聊天模式，可以对话）"
     Write-Host ""
+    Write-Host "  API 配置" -ForegroundColor Magenta
+    Write-Host "    " -NoNewline; Write-Host "cc -config" -ForegroundColor Green -NoNewline; Write-Host "      配置 AI API（Ollama/OpenAI/DeepSeek/豆包/通义千问等）"
+    Write-Host ""
     Write-Host "  模型管理" -ForegroundColor Magenta
     Write-Host "    " -NoNewline; Write-Host "cc -change" -ForegroundColor Green -NoNewline; Write-Host "      切换使用的模型"
-    Write-Host "    " -NoNewline; Write-Host "cc -add" -ForegroundColor Green -NoNewline; Write-Host "         安装新模型"
-    Write-Host "    " -NoNewline; Write-Host "cc -del" -ForegroundColor Green -NoNewline; Write-Host "         删除已安装的模型"
-    Write-Host "    " -NoNewline; Write-Host "cc -config" -ForegroundColor Green -NoNewline; Write-Host "      配置 API（接入其他 AI 服务）"
+    Write-Host "    " -NoNewline; Write-Host "cc -add" -ForegroundColor Green -NoNewline; Write-Host "         安装新模型（仅 Ollama）"
+    Write-Host "    " -NoNewline; Write-Host "cc -del" -ForegroundColor Green -NoNewline; Write-Host "         删除已安装的模型（仅 Ollama）"
     Write-Host ""
     Write-Host "  更新维护" -ForegroundColor Magenta
     Write-Host "    " -NoNewline; Write-Host "cc -u" -ForegroundColor Green -NoNewline; Write-Host "           更新 cc 脚本到最新版本"
