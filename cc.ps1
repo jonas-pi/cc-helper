@@ -458,19 +458,41 @@ if ($firstArg -eq "-del" -or $firstArg -eq "delete" -or $firstArg -eq "rm") {
 }
 
 # 帮助信息
-if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help") {
-    Write-Host "用法: cc <中文需求>" -ForegroundColor Gray
-    Write-Host "示例: cc 我在哪个目录" -ForegroundColor Gray
-    Write-Host "" -ForegroundColor Gray
-    Write-Host "预设指令:" -ForegroundColor Gray
-    Write-Host "  cc hello     - 显示版本和模型信息" -ForegroundColor Gray
-    Write-Host "  cc -u        - 更新脚本" -ForegroundColor Gray
-    Write-Host "  cc -w        - 切换到工作模式（命令助手）" -ForegroundColor Gray
-    Write-Host "  cc -r        - 切换到休息模式（聊天）" -ForegroundColor Gray
-    Write-Host "  cc -change   - 切换模型" -ForegroundColor Gray
-    Write-Host "  cc -add      - 安装新模型" -ForegroundColor Gray
-    Write-Host "  cc -del      - 删除模型" -ForegroundColor Gray
-    exit 1
+if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $firstArg -eq "-help" -or $firstArg -eq "help") {
+    Write-Host "╔════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║         CC 命令助手 - 使用指南          ║" -ForegroundColor Cyan
+    Write-Host "╚════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "基本用法:" -ForegroundColor Yellow
+    Write-Host "  cc <中文需求>" -ForegroundColor Gray
+    Write-Host "  示例: " -NoNewline; Write-Host "cc 我在哪个目录" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "预设指令:" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  信息查询" -ForegroundColor Magenta
+    Write-Host "    " -NoNewline; Write-Host "cc hello" -ForegroundColor Green -NoNewline; Write-Host "        显示版本、模型和系统信息"
+    Write-Host "    " -NoNewline; Write-Host "cc -h, --help" -ForegroundColor Green -NoNewline; Write-Host "   显示此帮助信息"
+    Write-Host ""
+    Write-Host "  模式切换" -ForegroundColor Magenta
+    Write-Host "    " -NoNewline; Write-Host "cc -w" -ForegroundColor Green -NoNewline; Write-Host "           工作模式（命令助手，只输出命令）"
+    Write-Host "    " -NoNewline; Write-Host "cc -r" -ForegroundColor Green -NoNewline; Write-Host "           休息模式（聊天模式，可以对话）"
+    Write-Host ""
+    Write-Host "  模型管理" -ForegroundColor Magenta
+    Write-Host "    " -NoNewline; Write-Host "cc -change" -ForegroundColor Green -NoNewline; Write-Host "      切换使用的模型"
+    Write-Host "    " -NoNewline; Write-Host "cc -add" -ForegroundColor Green -NoNewline; Write-Host "         安装新模型"
+    Write-Host "    " -NoNewline; Write-Host "cc -del" -ForegroundColor Green -NoNewline; Write-Host "         删除已安装的模型"
+    Write-Host ""
+    Write-Host "  更新维护" -ForegroundColor Magenta
+    Write-Host "    " -NoNewline; Write-Host "cc -u" -ForegroundColor Green -NoNewline; Write-Host "           更新 cc 脚本到最新版本"
+    Write-Host ""
+    Write-Host "使用示例:" -ForegroundColor Yellow
+    Write-Host "  工作模式: " -NoNewline; Write-Host "cc 查看磁盘使用情况" -ForegroundColor Green
+    Write-Host "  休息模式: " -NoNewline; Write-Host "cc 今天天气怎么样？" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "提示: 运行 " -NoNewline -ForegroundColor Gray
+    Write-Host "cc hello" -NoNewline -ForegroundColor Green
+    Write-Host " 查看当前配置" -ForegroundColor Gray
+    exit 0
 }
 
 $userQuery = $args -join " "

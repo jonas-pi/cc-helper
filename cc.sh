@@ -326,19 +326,39 @@ main() {
     fi
     
     # 帮助信息
-    if [ $# -lt 1 ] || [ "$first_arg" = "-h" ] || [ "$first_arg" = "--help" ]; then
-        echo "用法: cc <中文需求>"
-        echo "示例: cc 查看当前目录"
+    if [ $# -lt 1 ] || [ "$first_arg" = "-h" ] || [ "$first_arg" = "--help" ] || [ "$first_arg" = "-help" ] || [ "$first_arg" = "help" ]; then
+        echo -e "\033[1;36m╔════════════════════════════════════════════╗\033[0m"
+        echo -e "\033[1;36m║         CC 命令助手 - 使用指南          ║\033[0m"
+        echo -e "\033[1;36m╚════════════════════════════════════════════╝\033[0m"
         echo ""
-        echo "预设指令："
-        echo "  cc hello     - 显示版本和模型信息"
-        echo "  cc -u        - 更新脚本"
-        echo "  cc -w        - 切换到工作模式（命令助手）"
-        echo "  cc -r        - 切换到休息模式（聊天）"
-        echo "  cc -change   - 切换模型"
-        echo "  cc -add      - 安装新模型"
-        echo "  cc -del      - 删除模型"
-        exit 1
+        echo -e "\033[1;33m基本用法:\033[0m"
+        echo -e "  \033[0;37mcc <中文需求>\033[0m"
+        echo -e "  示例: \033[0;32mcc 查看当前目录\033[0m"
+        echo ""
+        echo -e "\033[1;33m预设指令:\033[0m"
+        echo ""
+        echo -e "  \033[1;35m信息查询\033[0m"
+        echo -e "    \033[0;32mcc hello\033[0m        显示版本、模型和系统信息"
+        echo -e "    \033[0;32mcc -h, --help\033[0m   显示此帮助信息"
+        echo ""
+        echo -e "  \033[1;35m模式切换\033[0m"
+        echo -e "    \033[0;32mcc -w\033[0m           工作模式（命令助手，只输出命令）"
+        echo -e "    \033[0;32mcc -r\033[0m           休息模式（聊天模式，可以对话）"
+        echo ""
+        echo -e "  \033[1;35m模型管理\033[0m"
+        echo -e "    \033[0;32mcc -change\033[0m      切换使用的模型"
+        echo -e "    \033[0;32mcc -add\033[0m         安装新模型"
+        echo -e "    \033[0;32mcc -del\033[0m         删除已安装的模型"
+        echo ""
+        echo -e "  \033[1;35m更新维护\033[0m"
+        echo -e "    \033[0;32mcc -u\033[0m           更新 cc 脚本到最新版本"
+        echo ""
+        echo -e "\033[1;33m使用示例:\033[0m"
+        echo -e "  工作模式: \033[0;32mcc 查看磁盘使用情况\033[0m"
+        echo -e "  休息模式: \033[0;32mcc 今天天气怎么样？\033[0m"
+        echo ""
+        echo -e "\033[0;37m提示: 运行 \033[1;32mcc hello\033[0;37m 查看当前配置\033[0m"
+        exit 0
     fi
 
     # 检查并选择可用模型
