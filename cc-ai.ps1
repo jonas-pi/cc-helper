@@ -17,17 +17,25 @@ if ($DEBUG) {
     Write-Host "[DEBUG] 查询: $userQuery" -ForegroundColor Gray
 }
 
-# 构建更精确的提示词
+# 构建更精确的提示词，使用 Few-Shot Learning
 $prompt = @"
-将以下中文需求转换为一条 Windows PowerShell 命令。
-只输出命令本身，不要任何解释、不要代码块标记、不要额外文字。
+将中文需求转换为 Windows PowerShell 命令。只输出命令，不要解释。
+
+示例：
+需求：查看当前目录
+命令：Get-Location
+
+需求：列出文件
+命令：Get-ChildItem
+
+需求：查看进程
+命令：Get-Process
 
 需求：$userQuery
-
 命令：
 "@
 
-$systemMsg = "你是一个 Windows PowerShell 命令转换助手。只输出命令，不要任何解释。"
+$systemMsg = "你是 PowerShell 命令转换助手。只输出命令。"
 
 $jsonBody = @{
     model = $MODEL
