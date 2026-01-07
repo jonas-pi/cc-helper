@@ -1,0 +1,354 @@
+# cc 命令助手 Windows 安装脚本
+# 功能：安装 Ollama、拉取模型、配置 cc 命令
+
+# 错误处理
+$ErrorActionPreference = "Stop"
+
+# 颜色输出函数
+function Write-ColorOutput($ForegroundColor) {
+    $fc = $host.UI.RawUI.ForegroundColor
+    $host.UI.RawUI.ForegroundColor = $ForegroundColor
+    if ($args) {
+        Write-Output $args
+    }
+    $host.UI.RawUI.ForegroundColor = $fc
+}
+
+function Write-Red($text) { Write-ColorOutput Red $text }
+function Write-Green($text) { Write-ColorOutput Green $text }
+function Write-Yellow($text) { Write-ColorOutput Yellow $text }
+function Write-Blue($text) { Write-ColorOutput Blue $text }
+
+# 配置
+$OLLAMA_MODEL = "qwen2.5:1.5b"
+$OLLAMA_URL = "http://127.0.0.1:11434"
+$CC_SCRIPT_PATH = "$env:USERPROFILE\cc.ps1"
+$BIN_DIR = "$env:USERPROFILE\bin"
+
+# 显示铭牌
+Write-ColorOutput Cyan @"
+  ██████╗ ██████╗     ██╗  ██╗███████╗██╗     ██████╗ ███████╗██████╗ 
+ ██╔════╝██╔════╝     ██║  ██║██╔════╝██║     ██╔══██╗██╔════╝██╔══██╗
+ ██║     ██║    █████╗███████║█████╗  ██║     ██████╔╝█████╗  ██████╔╝
+ ██║     ██║    ╚════╝██╔══██║██╔══╝  ██║     ██╔═══╝ ██╔══╝  ██╔══██╗
+ ╚██████╗╚██████╗     ██║  ██║███████╗███████╗██║     ███████╗██║  ██║
+  ╚═════╝ ╚═════╝     ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝
+
+      AI 命令助手 - 基于 Ollama 的智能命令生成工具
+"@
+Write-Output ""
+Write-Blue "========================================"
+Write-Blue "  正在安装 cc 命令助手..."
+Write-Blue "========================================"
+Write-Output ""
+
+# 检查管理员权限（不需要，但可以提示）
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Yellow "提示: 某些操作可能需要管理员权限"
+}
+
+# 1. 安装 Ollama
+Write-Yellow "[1/4] 检查并安装 Ollama..."
+if (Get-Command ollama -ErrorAction SilentlyContinue) {
+    Write-Green "✓ Ollama 已安装"
+    ollama --version 2>$null
+} else {
+    Write-Yellow "正在安装 Ollama..."
+    
+    # 尝试使用 winget 安装
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Write-Yellow "使用 winget 安装 Ollama..."
+        try {
+            winget install Ollama.Ollama --silent --accept-package-agreements --accept-source-agreements
+            Write-Green "✓ Ollama 安装成功"
+            # 刷新 PATH
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        } catch {
+            Write-Red "✗ winget 安装失败，尝试手动安装"
+            Write-Yellow "请访问 https://ollama.com/download 下载并安装 Ollama"
+            Write-Yellow "安装完成后重新运行此脚本"
+            exit 1
+        }
+    } else {
+        Write-Yellow "未找到 winget，请手动安装 Ollama"
+        Write-Yellow "1. 访问 https://ollama.com/download"
+        Write-Yellow "2. 下载并安装 Ollama"
+        Write-Yellow "3. 重新运行此脚本"
+        exit 1
+    }
+}
+
+# 启动 Ollama 服务（如果未运行）
+Write-Yellow "检查 Ollama 服务状态..."
+$ollamaProcess = Get-Process -Name ollama -ErrorAction SilentlyContinue
+if (-not $ollamaProcess) {
+    Write-Yellow "启动 Ollama 服务..."
+    Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden
+    Start-Sleep -Seconds 3
+    Write-Green "✓ Ollama 服务已启动"
+} else {
+    Write-Green "✓ Ollama 服务运行中"
+}
+
+# 检查 Ollama 是否可访问（最多重试 5 次）
+Write-Yellow "检查 Ollama 连接..."
+$OLLAMA_OK = $false
+for ($i = 1; $i -le 5; $i++) {
+    try {
+        $response = Invoke-WebRequest -Uri "$OLLAMA_URL/api/tags" -TimeoutSec 2 -ErrorAction Stop
+        Write-Green "✓ Ollama 服务运行正常"
+        $OLLAMA_OK = $true
+        break
+    } catch {
+        if ($i -lt 5) {
+            Write-Yellow "等待服务响应... ($i/5)"
+            Start-Sleep -Seconds 1
+        }
+    }
+}
+
+if (-not $OLLAMA_OK) {
+    Write-Yellow "⚠ Ollama 服务未响应，但继续安装..."
+    Write-Yellow "安装完成后请手动启动 Ollama"
+}
+Write-Output ""
+
+# 2. 拉取模型
+Write-Yellow "[2/4] 检查并拉取模型 $OLLAMA_MODEL..."
+$modelList = ollama list 2>$null
+if ($modelList -match $OLLAMA_MODEL) {
+    Write-Green "✓ 模型 $OLLAMA_MODEL 已存在"
+} else {
+    Write-Yellow "正在拉取模型 $OLLAMA_MODEL..."
+    Write-Yellow "（这可能需要一些时间，请耐心等待）"
+    ollama pull $OLLAMA_MODEL
+    if ($LASTEXITCODE -eq 0) {
+        Write-Green "✓ 模型拉取成功"
+    } else {
+        Write-Red "✗ 模型拉取失败"
+        exit 1
+    }
+}
+Write-Output ""
+
+# 3. 检查依赖（curl 在 Windows 10+ 中已内置）
+Write-Yellow "[3/4] 检查依赖..."
+if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+    Write-Green "✓ curl 已安装"
+} else {
+    Write-Red "✗ curl 未找到，Windows 10+ 应内置 curl"
+    exit 1
+}
+Write-Output ""
+
+# 4. 创建 cc.ps1 脚本
+Write-Yellow "[4/4] 创建 cc.ps1 脚本..."
+
+$ccScriptContent = @'
+# cc 命令助手 PowerShell 脚本
+
+# Ollama 配置
+$OLLAMA_URL = "http://127.0.0.1:11434/v1"
+$MODEL = "qwen2.5:1.5b"
+
+# 清理命令输出
+function Sanitize-Command {
+    param([string]$cmd)
+    # 移除代码块标记
+    $cmd = $cmd -replace '```', '' -replace 'bash', '' -replace 'shell', ''
+    # 移除首尾空白
+    $cmd = $cmd.Trim()
+    # 移除末尾的反斜杠
+    $cmd = $cmd -replace '\\$', ''
+    # 只取第一行
+    $cmd = ($cmd -split "`n")[0]
+    return $cmd
+}
+
+# 获取命令
+function Get-Command {
+    param([string]$query)
+    
+    # 构建提示词
+    $prompt = @"
+将中文需求转换为一条可直接执行的 Windows PowerShell 命令。
+只输出命令，不要解释、不要 Markdown、不要占位符。
+如果缺少参数，使用最常见的默认命令。
+注意：代理设置通常指 HTTP/HTTPS 代理（环境变量 http_proxy, https_proxy），不是 DNS 设置。
+
+需求：
+$query
+
+命令：
+
+"@
+
+    $systemMsg = "你是一个 Windows PowerShell 命令转换助手。只输出命令，不要任何解释。"
+    
+    # 构建 JSON
+    $jsonBody = @{
+        model = $MODEL
+        messages = @(
+            @{
+                role = "system"
+                content = $systemMsg
+            },
+            @{
+                role = "user"
+                content = $prompt
+            }
+        )
+        temperature = 0
+        max_tokens = 64
+    } | ConvertTo-Json -Depth 10
+
+    # 调用 Ollama API
+    try {
+        $response = Invoke-RestMethod -Uri "$OLLAMA_URL/chat/completions" `
+            -Method Post `
+            -ContentType "application/json" `
+            -Body $jsonBody `
+            -ErrorAction Stop
+
+        if ($response.choices -and $response.choices.Count -gt 0 -and $response.choices[0].message.content) {
+            return $response.choices[0].message.content
+        } else {
+            return "ERROR: empty model output"
+        }
+    } catch {
+        if ($_.ErrorDetails.Message) {
+            try {
+                $errorObj = $_.ErrorDetails.Message | ConvertFrom-Json
+                if ($errorObj.error.message) {
+                    return "ERROR: $($errorObj.error.message)"
+                }
+            } catch {
+                # 忽略 JSON 解析错误
+            }
+        }
+        return "ERROR: $($_.Exception.Message)"
+    }
+}
+
+# 主函数
+if ($args.Count -lt 1) {
+    Write-Host "用法: cc <中文需求>" -ForegroundColor Red
+    exit 1
+}
+
+$userQuery = $args -join " "
+$cmd = Get-Command $userQuery
+
+if ($cmd -match "^ERROR:") {
+    Write-Host $cmd -ForegroundColor Red
+    exit 1
+}
+
+# 清理命令
+$cmd = Sanitize-Command $cmd
+
+if ([string]::IsNullOrWhiteSpace($cmd)) {
+    Write-Host "错误: 模型返回了空命令" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host ""
+Write-Host "> AI 建议: $cmd" -ForegroundColor Green
+Write-Host ""
+
+$confirm = Read-Host "确认执行该命令吗？(y/Enter 执行, n 退出)"
+if ([string]::IsNullOrWhiteSpace($confirm) -or $confirm -eq "y" -or $confirm -eq "yes") {
+    Write-Host ""
+    Write-Host "正在执行: $cmd" -ForegroundColor Yellow
+    Write-Host ""
+    Invoke-Expression $cmd
+} else {
+    Write-Host "已取消执行。"
+}
+'@
+
+$ccScriptContent | Out-File -FilePath $CC_SCRIPT_PATH -Encoding UTF8
+Write-Green "✓ cc.ps1 脚本创建成功"
+Write-Output ""
+
+# 5. 创建 bin 目录并设置 PATH
+Write-Yellow "配置 PATH 和别名..."
+
+# 创建 bin 目录
+if (-not (Test-Path $BIN_DIR)) {
+    New-Item -ItemType Directory -Path $BIN_DIR -Force | Out-Null
+}
+
+# 创建 cc.bat 包装器（用于在 CMD 中调用）
+$ccBatContent = @"
+@echo off
+powershell.exe -ExecutionPolicy Bypass -File "$CC_SCRIPT_PATH" %*
+"@
+$ccBatPath = "$BIN_DIR\cc.bat"
+$ccBatContent | Out-File -FilePath $ccBatPath -Encoding ASCII
+Write-Green "✓ 创建 $ccBatPath"
+
+# 更新用户 PATH 环境变量
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($userPath -notlike "*$BIN_DIR*") {
+    $newPath = "$userPath;$BIN_DIR"
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    Write-Green "✓ 已添加 $BIN_DIR 到 PATH"
+    # 更新当前会话的 PATH
+    $env:Path = "$env:Path;$BIN_DIR"
+} else {
+    Write-Green "✓ PATH 已包含 $BIN_DIR"
+}
+
+# 创建 PowerShell 配置文件（如果不存在）
+$profilePath = $PROFILE.CurrentUserAllHosts
+$profileDir = Split-Path $profilePath -Parent
+if (-not (Test-Path $profileDir)) {
+    New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
+}
+
+# 添加 cc 函数到 PowerShell 配置文件
+$ccFunction = @"
+
+# cc 命令助手函数
+function cc {
+    & "$CC_SCRIPT_PATH" `$args
+}
+"@
+
+if (Test-Path $profilePath) {
+    $profileContent = Get-Content $profilePath -Raw
+    if ($profileContent -notmatch "function cc") {
+        Add-Content -Path $profilePath -Value $ccFunction
+        Write-Green "✓ 已添加 cc 函数到 PowerShell 配置文件"
+    } else {
+        Write-Green "✓ cc 函数已存在于 PowerShell 配置文件"
+    }
+} else {
+    $ccFunction | Out-File -FilePath $profilePath -Encoding UTF8
+    Write-Green "✓ 已创建 PowerShell 配置文件并添加 cc 函数"
+}
+Write-Output ""
+
+# 完成
+Write-Blue "========================================"
+Write-Green "安装完成！"
+Write-Blue "========================================"
+Write-Output ""
+Write-Yellow "下一步："
+Write-Output "1. 重新打开 PowerShell 或运行以下命令："
+Write-Host "   . `$PROFILE" -ForegroundColor Green
+Write-Output ""
+Write-Output "2. 或者在 CMD 中直接使用："
+Write-Host "   cc 查看当前目录" -ForegroundColor Green
+Write-Output ""
+Write-Yellow "配置信息："
+Write-Output "  - 模型: $OLLAMA_MODEL"
+Write-Output "  - 脚本: $CC_SCRIPT_PATH"
+Write-Output "  - 命令: $ccBatPath"
+Write-Output ""
+Write-Yellow "注意："
+Write-Output "- 如果遇到执行策略错误，请运行："
+Write-Host "  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser" -ForegroundColor Green
+Write-Output ""
+
