@@ -5,6 +5,12 @@
 
 set -e
 
+# 错误处理函数
+error_exit() {
+    echo -e "${RED}✗ 错误: $1${NC}" >&2
+    exit 1
+}
+
 # 颜色定义
 RED='\033[1;31m'
 GREEN='\033[1;32m'
@@ -87,14 +93,14 @@ if command -v jq &> /dev/null; then
 else
     echo -e "${YELLOW}正在安装 jq...${NC}"
     if command -v apt-get &> /dev/null; then
-        sudo apt-get update && sudo apt-get install -y jq
+        sudo apt-get update -qq 2>/dev/null || sudo apt-get update
+        sudo apt-get install -y jq || error_exit "jq 安装失败，请手动安装: sudo apt-get install -y jq"
     elif command -v yum &> /dev/null; then
-        sudo yum install -y jq
+        sudo yum install -y jq || error_exit "jq 安装失败，请手动安装: sudo yum install -y jq"
     elif command -v dnf &> /dev/null; then
-        sudo dnf install -y jq
+        sudo dnf install -y jq || error_exit "jq 安装失败，请手动安装: sudo dnf install -y jq"
     else
-        echo -e "${RED}✗ 无法自动安装 jq，请手动安装${NC}"
-        exit 1
+        error_exit "无法自动安装 jq，请手动安装"
     fi
     echo -e "${GREEN}✓ jq 安装成功${NC}"
 fi
