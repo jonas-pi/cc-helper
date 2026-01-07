@@ -117,10 +117,10 @@ if (Get-Command ollama -ErrorAction SilentlyContinue) {
                         Write-Yellow "正在删除模型 $model..."
                         try {
                             ollama rm $model 2>&1 | Out-Null
-                            if ($LASTEXITCODE -eq 0) {
-                                Write-Green "✓ $model 已删除"
-                            } else {
-                                Write-Red "✗ $model 删除失败"
+                        if ($LASTEXITCODE -eq 0) {
+                            Write-Green "✓ $model 已删除"
+                        } else {
+                            Write-Red "✗ $model 删除失败"
                             }
                         } catch {
                             Write-Red "✗ $model 删除失败: $($_.Exception.Message)"

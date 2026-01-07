@@ -401,7 +401,7 @@ try {
 "@
         [System.IO.File]::WriteAllText($CONFIG_FILE, $configContent, $saveEncoding)
         Write-Green "✓ 配置文件已更新为使用模型: $OLLAMA_MODEL"
-    } else {
+            } else {
         # 云端模式：不设置默认模型，让用户通过 -config 配置
         $configContent = @"
 # cc 命令助手配置文件
@@ -413,8 +413,8 @@ try {
 "@
         [System.IO.File]::WriteAllText($CONFIG_FILE, $configContent, $saveEncoding)
         Write-Green "✓ 配置文件已创建，请使用 cc -config 配置 API"
-    }
-} catch {
+        }
+    } catch {
     Write-Red "✗ cc.ps1 脚本下载失败: $($_.Exception.Message)"
     Write-Yellow "尝试使用本地模板..."
     
@@ -429,7 +429,7 @@ try {
 
 Write-Host "ERROR: 请从 GitHub 下载完整版本的 cc.ps1" -ForegroundColor Red
 Write-Host "URL: https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.ps1" -ForegroundColor Yellow
-exit 1
+    exit 1
 "@
     [System.IO.File]::WriteAllText($CC_SCRIPT_PATH, $fallbackScript, [System.Text.Encoding]::UTF8)
     Write-Yellow "⚠ 已创建占位脚本，请手动下载完整版本"
