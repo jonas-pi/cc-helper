@@ -11,11 +11,13 @@
 - 🔒 **安全确认**：执行前确认，避免误操作
 - 🎯 **智能理解**：准确理解中文需求，生成正确的命令
 - 📦 **一键安装**：自动安装所有依赖，开箱即用
+- 🗑️ **一键卸载**：完全清除所有相关文件和配置
+- 🎨 **美观界面**：安装过程带有进度提示和加载动画
 
 ## 🚀 一键安装
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/cc-helper/main/install.sh | bash
 ```
 
 安装完成后：
@@ -72,7 +74,7 @@ cc 查看我的代理设置
 5. ✅ 配置 PATH 和别名
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/cc-helper/main/install.sh | bash
 source ~/.bashrc
 ```
 
@@ -96,7 +98,7 @@ sudo apt-get install -y jq  # Debian/Ubuntu
 sudo yum install -y jq      # RHEL/CentOS
 
 # 5. 下载并运行安装脚本
-curl -fsSL https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/cc-helper/main/install.sh -o install.sh
 bash install.sh
 ```
 
@@ -167,27 +169,47 @@ sudo yum install -y jq
 
 ```
 cc-helper/
-├── README.md    # 项目说明
-├── install.sh   # 一键安装脚本
-├── LICENSE      # MIT 许可证
-└── .gitignore   # Git 忽略文件
+├── README.md      # 项目说明
+├── install.sh     # 一键安装脚本
+├── uninstall.sh   # 一键卸载脚本
+├── LICENSE        # MIT 许可证
+└── .gitignore     # Git 忽略文件
 ```
 
 ## 🗑️ 卸载
 
+### 一键卸载（推荐）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jonas-pi/cc-helper/main/uninstall.sh | bash
+```
+
+卸载脚本会自动清除：
+- ✅ 脚本文件 (~/cc.sh, ~/bin/cc)
+- ✅ 配置文件 (.bashrc 中的配置和别名)
+- ✅ Ollama 模型 (qwen2.5:1.5b)
+- ✅ Ollama 程序和数据目录
+- ✅ 临时文件和日志
+
+### 手动卸载
+
 ```bash
 # 删除脚本
-rm ~/cc.sh ~/bin/cc
+rm -f ~/cc.sh ~/bin/cc
 
 # 从 .bashrc 中移除配置
 sed -i '/# cc 命令助手配置/,+2d' ~/.bashrc
 sed -i '/alias cc=/d' ~/.bashrc
 
+# 删除模型
+ollama rm qwen2.5:1.5b
+
+# 卸载 Ollama（需要 sudo）
+sudo rm -f $(which ollama)
+rm -rf ~/.ollama
+
 # 重新加载配置
 source ~/.bashrc
-
-# （可选）卸载 Ollama 和模型
-ollama rm qwen2.5:1.5b
 ```
 
 ## 🤝 贡献
