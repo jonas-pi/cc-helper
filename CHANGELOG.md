@@ -1,8 +1,10 @@
 # CC 命令助手 - 更新日志
 
-## v0.9.1 (2026-01-07) - 关键修复
+## v0.1.2 (2026-01-07) - 稳定性修复
 
 ### 🐛 关键 Bug 修复
+
+**Linux (Bash):**
 - **修复 DeepSeek/豆包/通义千问 等云端 API 无法连接的问题**
   - 问题原因：`curl` 命令中 `$auth_header` 变量无法正确展开带引号的 header
   - 解决方案：直接在 `curl` 命令中使用 `-H "Authorization: Bearer $API_KEY"`
@@ -10,12 +12,20 @@
 - **修复 HTTP 状态码 000 错误**：现在可以正确发送 Authorization header
 - **符合 DeepSeek API 官方文档标准**：[https://api-docs.deepseek.com/zh-cn/](https://api-docs.deepseek.com/zh-cn/)
 
-### 技术说明
-Bash 中直接使用变量展开带引号的字符串（如 `$auth_header="-H \"Authorization: Bearer $API_KEY\""`）会导致引号被当作字符串的一部分，而不是 shell 的语法。正确的做法是直接写在命令中或使用 `eval`。
+**Windows (PowerShell):**
+- **修复 `[System.Object[]]` 返回问题**
+  - 问题原因：API 返回的 `content` 可能是数组类型
+  - 解决方案：增强类型检查，单元素数组取第一个元素，多元素数组用换行符连接
+  - 确保返回值强制转换为 `[string]` 类型
+- **提升稳定性**：更可靠的字符串类型转换逻辑
+
+### 版本说明
+- 版本号调整为 0.1.x，反映项目处于早期阶段
+- 专注于修复核心功能，确保基本可用性
 
 ---
 
-## v0.9.0 (2026-01-07) - 测试版
+## v0.9.0 (2026-01-07) - 已废弃
 
 ### 重大变化
 - 🔄 版本号降级为测试版 (0.9.0)，以反映当前的稳定性状态

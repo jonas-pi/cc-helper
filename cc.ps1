@@ -1,7 +1,7 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "0.9.1"
+$VERSION = "0.1.2"
 
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
@@ -210,11 +210,19 @@ PowerShell Command:
         if ($response.choices -and $response.choices.Count -gt 0 -and $response.choices[0].message.content) {
             $content = $response.choices[0].message.content
             
-            # 确保 content 是字符串
+            # 确保 content 是字符串（关键修复）
             if ($content -is [array]) {
-                $content = $content -join " "
-            } elseif ($content -isnot [string]) {
-                $content = $content.ToString()
+                # 如果是数组，取第一个元素或合并
+                if ($content.Count -eq 1) {
+                    $content = $content[0]
+                } else {
+                    $content = $content -join "`n"
+                }
+            }
+            
+            # 转换为字符串
+            if ($content -isnot [string]) {
+                $content = [string]$content
             }
             
             # 清理并返回
@@ -223,7 +231,8 @@ PowerShell Command:
                 return "ERROR: 模型返回空内容"
             }
             
-            return $content
+            # 返回时确保是字符串
+            return [string]$content
         } else {
             return "ERROR: 模型无响应"
         }
