@@ -112,35 +112,38 @@ else
 fi
 
 # 启动 Ollama 服务（如果未运行）
-show_progress "检查 Ollama 服务状态" 1
+echo -e "${YELLOW}检查 Ollama 服务状态...${NC}"
 if ! pgrep -x ollama > /dev/null 2>&1; then
     echo -e "  ${YELLOW}启动 Ollama 服务...${NC}"
     nohup ollama serve > /tmp/ollama.log 2>&1 &
-    show_progress "等待服务启动" 3
+    sleep 3
     # 再次检查是否启动成功
     if ! pgrep -x ollama > /dev/null 2>&1; then
-        show_progress "等待服务就绪" 2
+        sleep 2
     fi
+    echo -e "  ${GREEN}✓ Ollama 服务已启动${NC}"
+else
+    echo -e "  ${GREEN}✓ Ollama 服务运行中${NC}"
 fi
 
 # 检查 Ollama 是否可访问（最多重试 5 次）
+echo -e "${YELLOW}检查 Ollama 连接...${NC}"
 OLLAMA_OK=0
 for i in {1..5}; do
     if curl -s --max-time 2 "$OLLAMA_URL/api/tags" > /dev/null 2>&1; then
-        show_progress "验证 Ollama 连接" 1
         echo -e "  ${GREEN}✓ Ollama 服务运行正常${NC}"
         OLLAMA_OK=1
         break
     else
         if [ $i -lt 5 ]; then
-            echo -ne "\r${YELLOW}等待 Ollama 服务响应... (${i}/5)${NC}"
+            echo -e "  ${YELLOW}等待服务响应... (${i}/5)${NC}"
             sleep 1
         fi
     fi
 done
 
 if [ $OLLAMA_OK -eq 0 ]; then
-    echo -e "\r${YELLOW}⚠ Ollama 服务未响应，但继续安装...${NC}"
+    echo -e "  ${YELLOW}⚠ Ollama 服务未响应，但继续安装...${NC}"
     echo -e "  ${YELLOW}安装完成后请手动启动: ollama serve &${NC}"
 fi
 echo ""
@@ -148,17 +151,17 @@ echo ""
 # 2. 拉取模型
 echo -e "${YELLOW}[2/4] 检查并拉取模型 ${OLLAMA_MODEL}...${NC}"
 if ollama list 2>/dev/null | grep -q "$OLLAMA_MODEL"; then
-    show_progress "检查模型" 1
     echo -e "  ${GREEN}✓ 模型 ${OLLAMA_MODEL} 已存在${NC}"
 else
     echo -e "${YELLOW}正在拉取模型 ${OLLAMA_MODEL}...${NC}"
     echo -e "  ${YELLOW}（这可能需要一些时间，请耐心等待）${NC}"
-    if ollama pull "$OLLAMA_MODEL" 2>&1 | while IFS= read -r line; do
-        echo -ne "\r${YELLOW}  ${line:0:60}${NC}"
-    done; then
-        echo -e "\r${GREEN}  ✓ 模型拉取成功${NC}"
+    echo ""
+    if ollama pull "$OLLAMA_MODEL"; then
+        echo ""
+        echo -e "  ${GREEN}✓ 模型拉取成功${NC}"
     else
-        echo -e "\r${RED}  ✗ 模型拉取失败${NC}"
+        echo ""
+        echo -e "  ${RED}✗ 模型拉取失败${NC}"
         exit 1
     fi
 fi
@@ -169,20 +172,15 @@ echo -e "${YELLOW}[3/4] 检查并安装依赖（jq, curl）...${NC}"
 
 # 检查并安装 jq
 if command -v jq &> /dev/null; then
-    show_progress "检查 jq" 0.5
     echo -e "  ${GREEN}✓ jq 已安装${NC}"
 else
     echo -e "${YELLOW}正在安装 jq...${NC}"
     if command -v apt-get &> /dev/null; then
-        show_progress "更新软件包列表" 1
         sudo apt-get update -qq 2>/dev/null || sudo apt-get update > /dev/null 2>&1
-        show_progress "安装 jq" 2
         sudo apt-get install -y jq > /dev/null 2>&1 || error_exit "jq 安装失败，请手动安装: sudo apt-get install -y jq"
     elif command -v yum &> /dev/null; then
-        show_progress "安装 jq" 2
         sudo yum install -y jq > /dev/null 2>&1 || error_exit "jq 安装失败，请手动安装: sudo yum install -y jq"
     elif command -v dnf &> /dev/null; then
-        show_progress "安装 jq" 2
         sudo dnf install -y jq > /dev/null 2>&1 || error_exit "jq 安装失败，请手动安装: sudo dnf install -y jq"
     else
         error_exit "无法自动安装 jq，请手动安装"
@@ -191,7 +189,6 @@ else
 fi
 
 # 检查 curl
-show_progress "检查 curl" 0.5
 if command -v curl &> /dev/null; then
     echo -e "  ${GREEN}✓ curl 已安装${NC}"
 else
@@ -202,7 +199,6 @@ echo ""
 
 # 4. 创建 cc.sh 脚本
 echo -e "${YELLOW}[4/4] 创建 cc.sh 脚本...${NC}"
-show_progress "生成脚本文件" 1
 
 cat > "$CC_SCRIPT_PATH" << 'CC_SCRIPT_EOF'
 #!/bin/bash
@@ -343,7 +339,6 @@ echo ""
 
 # 5. 创建 ~/bin 目录并设置 PATH
 echo -e "${YELLOW}配置 PATH 和别名...${NC}"
-show_progress "创建目录结构" 0.5
 mkdir -p "$BIN_DIR"
 
 # 创建 ~/bin/cc 链接
@@ -352,12 +347,10 @@ cat > "$BIN_DIR/cc" << 'BIN_CC_EOF'
 exec bash ~/cc.sh "$@"
 BIN_CC_EOF
 chmod +x "$BIN_DIR/cc"
-show_progress "配置命令链接" 0.5
 echo -e "  ${GREEN}✓ 创建 $BIN_DIR/cc${NC}"
 
 # 更新 .bashrc
 BASHRC="$HOME/.bashrc"
-show_progress "更新配置文件" 0.5
 if ! grep -q "export PATH=\"\$HOME/bin:\$PATH\"" "$BASHRC" 2>/dev/null; then
     echo "" >> "$BASHRC"
     echo "# cc 命令助手配置" >> "$BASHRC"
