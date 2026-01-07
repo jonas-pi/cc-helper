@@ -245,6 +245,21 @@ $query
                 $content = [string]$content
             }
             
+            # 在 GBK 环境下，确保 Unicode 字符串正确转换为 GBK
+            $consoleEncoding = [Console]::OutputEncoding
+            if ($consoleEncoding.CodePage -eq 936) {
+                # GBK 环境：将 Unicode 字符串转换为 GBK 编码
+                try {
+                    $unicode = [System.Text.Encoding]::Unicode
+                    $gbk = [System.Text.Encoding]::GetEncoding(936)
+                    $unicodeBytes = $unicode.GetBytes($content)
+                    $gbkBytes = [System.Text.Encoding]::Convert($unicode, $gbk, $unicodeBytes)
+                    $content = $gbk.GetString($gbkBytes)
+                } catch {
+                    # 转换失败，使用原内容
+                }
+            }
+            
             # 清理并返回
             $content = $content.Trim()
             if ([string]::IsNullOrWhiteSpace($content)) {
