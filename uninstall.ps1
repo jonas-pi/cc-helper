@@ -95,7 +95,7 @@ if (Get-Command ollama -ErrorAction SilentlyContinue) {
     }
     
     # 列出所有模型
-    $modelOutput = ollama list 2>$null
+    $modelOutput = ollama list 2>&1
     if ($modelOutput) {
         $models = $modelOutput | Select-Object -Skip 1 | ForEach-Object {
             ($_ -split '\s+')[0]
@@ -115,11 +115,15 @@ if (Get-Command ollama -ErrorAction SilentlyContinue) {
                     # 删除所有模型
                     foreach ($model in $models) {
                         Write-Yellow "正在删除模型 $model..."
-                        ollama rm $model 2>$null
-                        if ($LASTEXITCODE -eq 0) {
-                            Write-Green "✓ $model 已删除"
-                        } else {
-                            Write-Red "✗ $model 删除失败"
+                        try {
+                            ollama rm $model 2>&1 | Out-Null
+                            if ($LASTEXITCODE -eq 0) {
+                                Write-Green "✓ $model 已删除"
+                            } else {
+                                Write-Red "✗ $model 删除失败"
+                            }
+                        } catch {
+                            Write-Red "✗ $model 删除失败: $($_.Exception.Message)"
                         }
                         Start-Sleep -Milliseconds 500
                     }
@@ -131,7 +135,11 @@ if (Get-Command ollama -ErrorAction SilentlyContinue) {
                         if ($index -ge 0 -and $index -lt $models.Count) {
                             $model = $models[$index]
                             Write-Yellow "正在删除模型 $model..."
-                            ollama rm $model 2>$null
+                            try {
+                                ollama rm $model 2>&1 | Out-Null
+                            } catch {
+                                # 忽略错误
+                            }
                             if ($LASTEXITCODE -eq 0) {
                                 Write-Green "✓ $model 已删除"
                             } else {
@@ -192,7 +200,7 @@ foreach ($path in $ollamaPaths) {
         try {
             # 尝试使用 winget 卸载
             if (Get-Command winget -ErrorAction SilentlyContinue) {
-                winget uninstall Ollama.Ollama --silent 2>$null
+                winget uninstall Ollama.Ollama --silent 2>&1 | Out-Null
                 Write-Green "✓ 已通过 winget 卸载 Ollama"
                 $ollamaFound = $true
                 break
