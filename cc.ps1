@@ -132,6 +132,38 @@ function Check-And-Select-Model {
     return $true
 }
 
+# 安全输出函数（处理 GBK 编码问题）
+function Safe-Write-Host {
+    param(
+        [string]$Message,
+        [string]$ForegroundColor = "White",
+        [switch]$ShowEncodingHint
+    )
+    
+    $consoleEncoding = [Console]::OutputEncoding
+    if ($consoleEncoding.CodePage -eq 936) {
+        # GBK 环境：临时切换到 UTF-8 输出
+        $originalEncoding = [Console]::OutputEncoding
+        try {
+            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+            Write-Host $Message -ForegroundColor $ForegroundColor
+            # 如果显示提示且内容可能包含特殊字符，添加编码提示
+            if ($ShowEncodingHint -and ($Message -match '[^\x00-\x7F]')) {
+                Write-Host ""
+                Write-Host "提示: 如果看到问号，运行 " -NoNewline -ForegroundColor Yellow
+                Write-Host "cc -fix" -NoNewline -ForegroundColor Cyan
+                Write-Host " 切换到 UTF-8 编码" -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host $Message -ForegroundColor $ForegroundColor
+        } finally {
+            [Console]::OutputEncoding = $originalEncoding
+        }
+    } else {
+        Write-Host $Message -ForegroundColor $ForegroundColor
+    }
+}
+
 # 清理命令输出
 function Sanitize-Command {
     param([string]$cmd)
@@ -1517,8 +1549,8 @@ if ($cmd -match "^ERROR:") {
 }
 
 # 休息模式：直接输出回复
-if ($MODE -eq "rest") {
-    Write-Host $cmd -ForegroundColor Gray
+if ($script:MODE -eq "rest") {
+    Safe-Write-Host -Message $cmd -ForegroundColor "Gray" -ShowEncodingHint
     exit 0
 }
 
@@ -1540,21 +1572,8 @@ if ([string]::IsNullOrWhiteSpace($cmd)) {
     exit 1
 }
 
-# 输出命令
-# 在 GBK 环境下，使用 UTF-8 编码输出以避免乱码
-$consoleEncoding = [Console]::OutputEncoding
-if ($consoleEncoding.CodePage -eq 936) {
-    # GBK 环境：临时切换到 UTF-8 输出命令
-    $originalEncoding = [Console]::OutputEncoding
-    try {
-        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-        Write-Host "> $cmd" -ForegroundColor Gray
-    } finally {
-        [Console]::OutputEncoding = $originalEncoding
-    }
-} else {
-    Write-Host "> $cmd" -ForegroundColor Gray
-}
+# 输出命令（使用安全输出函数处理 GBK 编码）
+Safe-Write-Host -Message "> $cmd" -ForegroundColor "Gray" -ShowEncodingHint
 
 $confirm = Read-Host "[y/n]"
 if ([string]::IsNullOrWhiteSpace($confirm) -or $confirm -eq "y" -or $confirm -eq "yes") {
