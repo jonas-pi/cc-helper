@@ -123,12 +123,17 @@ function Sanitize-Command {
 function Get-AICommand {
     param([string]$query)
     
-    # 针对 phi3.5 优化的提示词
-    $prompt = "将以下中文需求转换为一条 Windows CMD 命令，只输出命令本身，不要解释：
+    # 针对 phi3.5 优化的提示词（使用英文提示词效果更好）
+    $prompt = @"
+Convert the following Chinese request into a single Windows CMD command.
+Output ONLY the command, without any explanation, markdown, or extra text.
 
-$query"
+Request in Chinese: $query
 
-    $systemMsg = "你是一个 Windows 命令行助手。只输出一行命令，不要任何解释或额外文字。"
+Command:
+"@
+
+    $systemMsg = "You are a Windows command-line assistant. Output only the command, nothing else."
     
     # 构建 JSON
     $jsonBody = @{
@@ -143,8 +148,8 @@ $query"
                 content = $prompt
             }
         )
-        temperature = 0
-        max_tokens = 128
+        temperature = 0.1
+        max_tokens = 64
     } | ConvertTo-Json -Depth 10
 
     # 调用 Ollama API
