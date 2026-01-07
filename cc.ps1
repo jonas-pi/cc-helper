@@ -49,6 +49,11 @@ if ($isGBK) {
 
 # 检查并自动选择可用模型
 function Check-And-Select-Model {
+    # 如果不是 Ollama，跳过模型检查
+    if ($API_TYPE -ne "ollama") {
+        return $true
+    }
+    
     # 检查当前配置的模型是否存在
     $modelList = ollama list 2>$null
     if ($modelList -and $modelList -match [regex]::Escape($MODEL)) {

@@ -40,6 +40,11 @@ fi
 
 # 检查并自动选择可用模型
 check_and_select_model() {
+    # 如果不是 Ollama，跳过模型检查
+    if [ "$API_TYPE" != "ollama" ]; then
+        return 0
+    fi
+    
     # 检查当前配置的模型是否存在
     if ollama list 2>/dev/null | grep -q "^${MODEL}"; then
         return 0
