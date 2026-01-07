@@ -1,6 +1,6 @@
 # 更新 cc.ps1 脚本（使用正确的 UTF-8 编码）
 
-$url = "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc-windows.ps1"
+$url = "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc-ai.ps1"
 $outputPath = "$env:USERPROFILE\cc.ps1"
 
 Write-Host ""
