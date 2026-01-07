@@ -1,9 +1,7 @@
 # cc 命令助手 PowerShell 脚本
-# 编码: UTF-8 with BOM
+# 注意: 此脚本会根据控制台编码保存为对应编码
 
-# 强制使用 UTF-8 编码
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$PSDefaultParameterValues['*:Encoding'] = 'utf8'
+# 不修改控制台编码，使用当前编码即可
 
 # Ollama 配置
 $OLLAMA_URL = "http://127.0.0.1:11434/v1"
