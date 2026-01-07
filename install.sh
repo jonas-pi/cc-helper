@@ -55,17 +55,32 @@ fi
 echo -e "${YELLOW}检查 Ollama 服务状态...${NC}"
 if ! pgrep -x ollama > /dev/null; then
     echo -e "${YELLOW}启动 Ollama 服务...${NC}"
-    ollama serve &
+    ollama serve > /dev/null 2>&1 &
     sleep 3
+    # 再次检查是否启动成功
+    if ! pgrep -x ollama > /dev/null; then
+        echo -e "${YELLOW}等待 Ollama 服务启动...${NC}"
+        sleep 2
+    fi
 fi
 
-# 检查 Ollama 是否可访问
-if ! curl -s "$OLLAMA_URL/api/tags" > /dev/null; then
-    echo -e "${RED}✗ 无法连接到 Ollama 服务${NC}"
-    echo -e "${YELLOW}请确保 Ollama 服务正在运行${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✓ Ollama 服务运行正常${NC}"
+# 检查 Ollama 是否可访问（最多重试 3 次）
+echo -e "${YELLOW}检查 Ollama 连接...${NC}"
+for i in {1..3}; do
+    if curl -s "$OLLAMA_URL/api/tags" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ Ollama 服务运行正常${NC}"
+        break
+    else
+        if [ $i -eq 3 ]; then
+            echo -e "${RED}✗ 无法连接到 Ollama 服务${NC}"
+            echo -e "${YELLOW}请手动启动: ollama serve &${NC}"
+            echo -e "${YELLOW}然后重新运行安装脚本${NC}"
+            exit 1
+        fi
+        echo -e "${YELLOW}等待 Ollama 服务响应... (${i}/3)${NC}"
+        sleep 2
+    fi
+done
 echo ""
 
 # 2. 拉取模型
