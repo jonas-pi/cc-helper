@@ -3,6 +3,7 @@
 # Ollama 配置
 OLLAMA_URL="http://127.0.0.1:11434/v1"
 MODEL="qwen2.5:1.5b"
+MODE="work"  # work: 工作模式（只输出命令）, rest: 休息模式（可以聊天）
 
 # 检查并自动选择可用模型
 check_and_select_model() {
@@ -49,10 +50,27 @@ sanitize() {
     echo "$cmd"
 }
 
-# 获取命令
+# 获取命令或回复
 get_command() {
     local query="$1"
-    local prompt="将中文需求转换为一条可直接执行的 Linux shell 命令。
+    
+    # 根据模式设置不同的提示词
+    local prompt=""
+    local system_msg=""
+    
+    if [ "$MODE" = "rest" ]; then
+        # 休息模式：可以聊天
+        prompt="请用友好、轻松的语气回复用户。可以聊天、解答问题、提供建议。
+
+用户说：
+${query}
+
+回复：
+"
+        system_msg="你是一个友好的AI助手，喜欢和用户聊天交流。"
+    else
+        # 工作模式：只输出命令
+        prompt="将中文需求转换为一条可直接执行的 Linux shell 命令。
 只输出命令，不要解释、不要 Markdown、不要占位符。
 如果缺少参数，使用最常见的默认命令。
 
@@ -61,8 +79,8 @@ ${query}
 
 命令：
 "
-
-    local system_msg="你是一个 Linux 命令转换助手。只输出命令，不要任何解释。"
+        system_msg="你是一个 Linux 命令转换助手。只输出命令，不要任何解释。"
+    fi
     
     local json_data=$(jq -n \
         --arg model "$MODEL" \
@@ -105,7 +123,49 @@ main() {
     
     # 预设指令: hello（不依赖模型）
     if [ "$first_arg" = "hello" ]; then
-        echo -e "\033[0;37mcc v1.0 | $MODEL\033[0m"
+        echo -e "\033[0;37m(｡･ω･｡) cc v1.0\033[0m"
+        echo ""
+        
+        # 显示当前模型
+        echo -e "\033[0;37m当前模型: \033[1;32m$MODEL\033[0m"
+        
+        # 显示当前模式
+        if [ "$MODE" = "rest" ]; then
+            echo -e "\033[0;37m当前模式: \033[1;35m休息模式\033[0m \033[0;37m(可以聊天)\033[0m"
+        else
+            echo -e "\033[0;37m当前模式: \033[1;36m工作模式\033[0m \033[0;37m(命令助手)\033[0m"
+        fi
+        
+        # 列出所有已安装的模型
+        local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+        if [ -n "$models" ]; then
+            echo ""
+            echo -e "\033[0;37m已安装的模型:\033[0m"
+            while IFS= read -r model; do
+                if [ "$model" = "$MODEL" ]; then
+                    echo -e "  • \033[1;32m$model\033[0m"
+                else
+                    echo -e "  • $model"
+                fi
+            done <<< "$models"
+        fi
+        
+        echo ""
+        echo -e "\033[0;37m准备好了~ 有什么可以帮你的吗？\033[0m"
+        exit 0
+    fi
+    
+    # 预设指令: -w 工作模式
+    if [ "$first_arg" = "-w" ] || [ "$first_arg" = "work" ]; then
+        sed -i 's/^MODE=.*/MODE="work"/' "$HOME/cc.sh"
+        echo -e "\033[1;36m已切换到工作模式\033[0m \033[0;37m- 专注命令，高效执行\033[0m"
+        exit 0
+    fi
+    
+    # 预设指令: -r 休息模式
+    if [ "$first_arg" = "-r" ] || [ "$first_arg" = "rest" ] || [ "$first_arg" = "chat" ]; then
+        sed -i 's/^MODE=.*/MODE="rest"/' "$HOME/cc.sh"
+        echo -e "\033[1;35m已切换到休息模式\033[0m \033[0;37m- 放松一下，聊聊天吧~\033[0m"
         exit 0
     fi
     
@@ -271,8 +331,10 @@ main() {
         echo "示例: cc 查看当前目录"
         echo ""
         echo "预设指令："
-        echo "  cc hello     - 显示版本信息"
+        echo "  cc hello     - 显示版本和模型信息"
         echo "  cc -u        - 更新脚本"
+        echo "  cc -w        - 切换到工作模式（命令助手）"
+        echo "  cc -r        - 切换到休息模式（聊天）"
         echo "  cc -change   - 切换模型"
         echo "  cc -add      - 安装新模型"
         echo "  cc -del      - 删除模型"
@@ -292,6 +354,13 @@ main() {
         exit 1
     fi
 
+    # 休息模式：直接输出回复
+    if [ "$MODE" = "rest" ]; then
+        echo -e "\033[0;37m$cmd\033[0m"
+        exit 0
+    fi
+    
+    # 工作模式：清理命令并执行
     cmd=$(sanitize "$cmd")
 
     if [ -z "$cmd" ]; then
