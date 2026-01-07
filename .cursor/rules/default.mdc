@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+1：兼顾Linux和Windows端
+2：代码要简洁准确
+3：不要随便创建文档
+4：记得更新版本号VERSION和更新记录CHANGELOG
