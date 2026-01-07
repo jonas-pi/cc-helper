@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="2.0.1"
+VERSION="2.0.2"
 
 # 配置文件路径
 CONFIG_FILE="$HOME/.cc_config"
@@ -223,6 +223,119 @@ main() {
             echo ""
             echo -e "\033[0;90m使用 \033[1;32mcc -config\033[0;90m 更改配置\033[0m"
         fi
+        exit 0
+    fi
+    
+    # 预设指令: testapi 测试 API 连接
+    if [ "$first_arg" = "testapi" ] || [ "$first_arg" = "test-api" ] || [ "$first_arg" = "-test" ]; then
+        echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo -e "\033[1;36m            API 连接测试              \033[0m"
+        echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo ""
+        
+        echo -e "\033[0;37m当前配置:\033[0m"
+        echo -e "  API 类型: \033[1;36m$API_TYPE\033[0m"
+        echo -e "  API 地址: \033[0;37m$OLLAMA_URL\033[0m"
+        echo -e "  模型名称: \033[1;32m$MODEL\033[0m"
+        if [ -n "$API_KEY" ]; then
+            echo -e "  API Key:  \033[0;37m${API_KEY:0:10}...\033[0m"
+        else
+            echo -e "  API Key:  \033[0;33m(未设置)\033[0m"
+        fi
+        echo ""
+        
+        echo -e "\033[0;33m正在测试连接...\033[0m"
+        echo ""
+        
+        # 构建测试请求
+        local test_data=$(jq -n \
+            --arg model "$MODEL" \
+            '{
+                model: $model,
+                messages: [
+                    {role: "user", content: "hi"}
+                ],
+                max_tokens: 5
+            }')
+        
+        # 构建 header
+        local auth_header=""
+        if [ -n "$API_KEY" ]; then
+            auth_header="-H \"Authorization: Bearer $API_KEY\""
+        elif [ "$API_TYPE" = "ollama" ]; then
+            auth_header="-H \"Authorization: Bearer ollama\""
+        fi
+        
+        # 发送测试请求
+        local start_time=$(date +%s%N)
+        local response=$(timeout 30 curl -s -w "\n%{http_code}" -X POST "${OLLAMA_URL}/chat/completions" \
+            -H "Content-Type: application/json" \
+            $auth_header \
+            -d "$test_data" 2>&1)
+        local end_time=$(date +%s%N)
+        local duration=$(( (end_time - start_time) / 1000000 ))
+        
+        # 分离 HTTP 状态码和响应体
+        local http_code=$(echo "$response" | tail -n 1)
+        local body=$(echo "$response" | sed '$d')
+        
+        # 检查结果
+        if [ "$http_code" = "200" ]; then
+            local content=$(echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null)
+            if [ -n "$content" ] && [ "$content" != "null" ]; then
+                echo -e "\033[1;32m✓ API 连接成功！\033[0m"
+                echo ""
+                echo -e "\033[0;37m响应时间: \033[1;36m${duration}ms\033[0m"
+                echo -e "\033[0;37m模型响应: \033[0;32m$content\033[0m"
+                echo ""
+                echo -e "\033[1;32m一切正常，可以使用 cc 了！\033[0m"
+            else
+                echo -e "\033[1;33m⚠ API 连接成功，但响应异常\033[0m"
+                echo ""
+                echo -e "\033[0;37mHTTP 状态码: \033[0;32m$http_code\033[0m"
+                echo -e "\033[0;37m响应时间: \033[1;36m${duration}ms\033[0m"
+                echo -e "\033[0;37m原始响应:\033[0m"
+                echo "$body" | jq . 2>/dev/null || echo "$body"
+            fi
+        else
+            echo -e "\033[1;31m✗ API 连接失败\033[0m"
+            echo ""
+            echo -e "\033[0;37mHTTP 状态码: \033[1;31m$http_code\033[0m"
+            echo -e "\033[0;37m响应时间: \033[1;36m${duration}ms\033[0m"
+            echo ""
+            echo -e "\033[0;33m可能的原因:\033[0m"
+            
+            if [ "$http_code" = "000" ] || [ -z "$http_code" ]; then
+                echo -e "  \033[1;31m1. 网络连接失败\033[0m"
+                echo -e "     - 检查网络连接"
+                echo -e "     - 检查 API 地址是否正确"
+                if [ "$API_TYPE" = "ollama" ]; then
+                    echo -e "     - 确认 Ollama 服务正在运行: \033[0;32mollama serve\033[0m"
+                fi
+            elif [ "$http_code" = "401" ]; then
+                echo -e "  \033[1;31m1. API Key 无效或已过期\033[0m"
+                echo -e "     - 检查 API Key 是否正确"
+                echo -e "     - 使用 \033[1;32mcc -config\033[0m 重新配置"
+            elif [ "$http_code" = "404" ]; then
+                echo -e "  \033[1;31m1. API 地址错误\033[0m"
+                echo -e "     - 检查 API_URL 配置"
+                echo -e "     - 使用 \033[1;32mcc -config\033[0m 重新配置"
+            elif [ "$http_code" = "429" ]; then
+                echo -e "  \033[1;31m1. 请求过于频繁（限流）\033[0m"
+                echo -e "     - 稍后再试"
+            else
+                echo -e "  \033[1;31m1. 模型名称可能不正确\033[0m"
+                echo -e "     - 当前模型: \033[1;32m$MODEL\033[0m"
+                echo -e "     - 检查模型名称是否支持"
+                echo -e "  \033[1;31m2. API 服务异常\033[0m"
+                echo -e "     - 查看错误详情（如果有）"
+            fi
+            
+            echo ""
+            echo -e "\033[0;37m错误详情:\033[0m"
+            echo "$body" | jq . 2>/dev/null || echo "$body"
+        fi
+        
         exit 0
     fi
     
@@ -626,6 +739,7 @@ EOF
         echo -e "  \033[1;35m信息查询\033[0m"
         echo -e "    \033[0;32mcc hello\033[0m        显示版本和配置信息"
         echo -e "    \033[0;32mcc list\033[0m         列出所有可用模型"
+        echo -e "    \033[0;32mcc testapi\033[0m      测试 API 连接状态"
         echo -e "    \033[0;32mcc -h, --help\033[0m   显示此帮助信息"
         echo ""
         echo -e "  \033[1;35m模式切换\033[0m"

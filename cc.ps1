@@ -1,7 +1,7 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "2.0.1"
+$VERSION = "2.0.2"
 
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
@@ -321,6 +321,140 @@ if ($firstArg -eq "list" -or $firstArg -eq "-list" -or $firstArg -eq "--list") {
         Write-Host "cc -config" -NoNewline -ForegroundColor Green
         Write-Host " 更改配置" -ForegroundColor DarkGray
     }
+    exit 0
+}
+
+# 预设指令: testapi 测试 API 连接
+if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-test") {
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+    Write-Host "            API 连接测试              " -ForegroundColor Cyan
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+    Write-Host ""
+    
+    Write-Host "当前配置:" -ForegroundColor Gray
+    Write-Host "  API 类型: " -NoNewline; Write-Host "$API_TYPE" -ForegroundColor Cyan
+    Write-Host "  API 地址: " -NoNewline; Write-Host "$OLLAMA_URL" -ForegroundColor Gray
+    Write-Host "  模型名称: " -NoNewline; Write-Host "$MODEL" -ForegroundColor Green
+    if ($API_KEY) {
+        Write-Host "  API Key:  " -NoNewline; Write-Host "$($API_KEY.Substring(0, [Math]::Min(10, $API_KEY.Length)))..." -ForegroundColor Gray
+    } else {
+        Write-Host "  API Key:  " -NoNewline; Write-Host "(未设置)" -ForegroundColor Yellow
+    }
+    Write-Host ""
+    
+    Write-Host "正在测试连接..." -ForegroundColor Yellow
+    Write-Host ""
+    
+    try {
+        # 构建测试请求
+        $testBody = @{
+            model = $MODEL
+            messages = @(
+                @{
+                    role = "user"
+                    content = "hi"
+                }
+            )
+            max_tokens = 5
+        } | ConvertTo-Json -Depth 10
+        
+        # 构建 headers
+        $headers = @{
+            "Content-Type" = "application/json"
+        }
+        
+        if ($API_KEY) {
+            $headers["Authorization"] = "Bearer $API_KEY"
+        } elseif ($API_TYPE -eq "ollama") {
+            $headers["Authorization"] = "Bearer ollama"
+        }
+        
+        # 发送测试请求
+        $startTime = Get-Date
+        $testResponse = Invoke-WebRequest -Uri "$OLLAMA_URL/chat/completions" `
+            -Method Post `
+            -Headers $headers `
+            -Body $testBody `
+            -TimeoutSec 30 `
+            -ErrorAction Stop
+        $endTime = Get-Date
+        $duration = ($endTime - $startTime).TotalMilliseconds
+        
+        # 解析响应
+        $responseObj = $testResponse.Content | ConvertFrom-Json
+        $content = $responseObj.choices[0].message.content
+        
+        if ($content) {
+            Write-Host "✓ API 连接成功！" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "响应时间: " -NoNewline -ForegroundColor Gray
+            Write-Host "$([Math]::Round($duration))ms" -ForegroundColor Cyan
+            Write-Host "模型响应: " -NoNewline -ForegroundColor Gray
+            Write-Host "$content" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "一切正常，可以使用 cc 了！" -ForegroundColor Green
+        } else {
+            Write-Host "⚠ API 连接成功，但响应异常" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "HTTP 状态码: " -NoNewline -ForegroundColor Gray
+            Write-Host "$($testResponse.StatusCode)" -ForegroundColor Green
+            Write-Host "响应时间: " -NoNewline -ForegroundColor Gray
+            Write-Host "$([Math]::Round($duration))ms" -ForegroundColor Cyan
+            Write-Host ""
+            Write-Host "原始响应:" -ForegroundColor Gray
+            Write-Host ($testResponse.Content | ConvertFrom-Json | ConvertTo-Json -Depth 10)
+        }
+    } catch {
+        $statusCode = $_.Exception.Response.StatusCode.value__
+        $errorMessage = $_.Exception.Message
+        
+        Write-Host "✗ API 连接失败" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "HTTP 状态码: " -NoNewline -ForegroundColor Gray
+        Write-Host "$statusCode" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "可能的原因:" -ForegroundColor Yellow
+        
+        if ($statusCode -eq 401) {
+            Write-Host "  1. API Key 无效或已过期" -ForegroundColor Red
+            Write-Host "     - 检查 API Key 是否正确"
+            Write-Host "     - 使用 " -NoNewline; Write-Host "cc -config" -NoNewline -ForegroundColor Green; Write-Host " 重新配置"
+        } elseif ($statusCode -eq 404) {
+            Write-Host "  1. API 地址错误或模型不存在" -ForegroundColor Red
+            Write-Host "     - 检查 API_URL 配置"
+            Write-Host "     - 检查模型名称: " -NoNewline; Write-Host "$MODEL" -ForegroundColor Green
+            Write-Host "     - 使用 " -NoNewline; Write-Host "cc -config" -NoNewline -ForegroundColor Green; Write-Host " 重新配置"
+        } elseif ($statusCode -eq 429) {
+            Write-Host "  1. 请求过于频繁（限流）" -ForegroundColor Red
+            Write-Host "     - 稍后再试"
+        } elseif ($statusCode -eq 400) {
+            Write-Host "  1. 请求参数错误" -ForegroundColor Red
+            Write-Host "     - 模型名称可能不正确: " -NoNewline; Write-Host "$MODEL" -ForegroundColor Green
+            Write-Host "     - 检查模型是否支持"
+        } elseif (-not $statusCode -or $statusCode -eq 0) {
+            Write-Host "  1. 网络连接失败" -ForegroundColor Red
+            Write-Host "     - 检查网络连接"
+            Write-Host "     - 检查 API 地址是否正确: " -NoNewline; Write-Host "$OLLAMA_URL" -ForegroundColor Gray
+            if ($API_TYPE -eq "ollama") {
+                Write-Host "     - 确认 Ollama 服务正在运行"
+            }
+        } else {
+            Write-Host "  1. 未知错误" -ForegroundColor Red
+            Write-Host "     - HTTP 状态码: $statusCode"
+        }
+        
+        Write-Host ""
+        Write-Host "错误详情:" -ForegroundColor Gray
+        Write-Host "$errorMessage" -ForegroundColor DarkGray
+        
+        try {
+            $errorBody = $_.ErrorDetails.Message | ConvertFrom-Json | ConvertTo-Json -Depth 10
+            Write-Host $errorBody -ForegroundColor DarkGray
+        } catch {
+            # 无法解析错误详情
+        }
+    }
+    
     exit 0
 }
 
@@ -907,6 +1041,7 @@ if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $fir
     Write-Host "  信息查询" -ForegroundColor Magenta
     Write-Host "    " -NoNewline; Write-Host "cc hello" -ForegroundColor Green -NoNewline; Write-Host "        显示版本和配置信息"
     Write-Host "    " -NoNewline; Write-Host "cc list" -ForegroundColor Green -NoNewline; Write-Host "         列出所有可用模型"
+    Write-Host "    " -NoNewline; Write-Host "cc testapi" -ForegroundColor Green -NoNewline; Write-Host "      测试 API 连接状态"
     Write-Host "    " -NoNewline; Write-Host "cc -h, --help" -ForegroundColor Green -NoNewline; Write-Host "   显示此帮助信息"
     Write-Host ""
     Write-Host "  模式切换" -ForegroundColor Magenta
