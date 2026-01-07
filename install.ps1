@@ -154,36 +154,46 @@ $MODEL = "qwen2.5:1.5b"
 # 清理命令输出
 function Sanitize-Command {
     param([string]$cmd)
-    # 移除代码块标记
-    $cmd = $cmd -replace '```', '' -replace 'bash', '' -replace 'shell', ''
-    # 移除首尾空白
+    if ([string]::IsNullOrWhiteSpace($cmd)) {
+        return ""
+    }
+    # 移除代码块标记（包括 PowerShell、bash、shell 等）
+    $cmd = $cmd -replace '```powershell', '' -replace '```ps1', '' -replace '```bash', '' -replace '```shell', '' -replace '```', ''
+    # 移除首尾空白和换行
     $cmd = $cmd.Trim()
     # 移除末尾的反斜杠
     $cmd = $cmd -replace '\\$', ''
+    # 移除可能的提示词残留（如果模型返回了提示词的一部分）
+    $cmd = $cmd -replace '^Windows Power.*?:', '' -replace '^只输出命令.*?:', '' -replace '^命令.*?:', '' -replace '^将中文需求.*?:', ''
     # 只取第一行
-    $cmd = ($cmd -split "`n")[0]
+    $lines = $cmd -split "`n", 2
+    $cmd = $lines[0].Trim()
+    # 移除可能的冒号和后续文本（如果模型返回了 "命令: xxx" 格式）
+    if ($cmd -match '^[^:]+:\s*(.+)$') {
+        $cmd = $matches[1].Trim()
+    }
+    # 再次清理首尾空白
+    $cmd = $cmd.Trim()
     return $cmd
 }
 
-# 获取命令
-function Get-Command {
+# 获取命令（重命名以避免与 PowerShell 内置 cmdlet 冲突）
+function Get-AICommand {
     param([string]$query)
     
     # 构建提示词
     $prompt = @"
 将中文需求转换为一条可直接执行的 Windows PowerShell 命令。
-只输出命令，不要解释、不要 Markdown、不要占位符。
+只输出命令，不要解释、不要 Markdown、不要占位符、不要代码块标记。
 如果缺少参数，使用最常见的默认命令。
 注意：代理设置通常指 HTTP/HTTPS 代理（环境变量 http_proxy, https_proxy），不是 DNS 设置。
 
-需求：
-$query
+需求：$query
 
 命令：
-
 "@
 
-    $systemMsg = "你是一个 Windows PowerShell 命令转换助手。只输出命令，不要任何解释。"
+    $systemMsg = "你是一个 Windows PowerShell 命令转换助手。只输出命令，不要任何解释，不要 Markdown 格式，不要代码块标记。"
     
     # 构建 JSON
     $jsonBody = @{
@@ -211,7 +221,13 @@ $query
             -ErrorAction Stop
 
         if ($response.choices -and $response.choices.Count -gt 0 -and $response.choices[0].message.content) {
-            return $response.choices[0].message.content
+            $content = $response.choices[0].message.content
+            # 确保返回的是字符串，并处理可能的编码问题
+            if ($content -is [string]) {
+                return $content.Trim()
+            } else {
+                return $content.ToString().Trim()
+            }
         } else {
             return "ERROR: empty model output"
         }
@@ -237,7 +253,7 @@ if ($args.Count -lt 1) {
 }
 
 $userQuery = $args -join " "
-$cmd = Get-Command $userQuery
+$cmd = Get-AICommand $userQuery
 
 if ($cmd -match "^ERROR:") {
     Write-Host $cmd -ForegroundColor Red
