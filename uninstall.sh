@@ -84,38 +84,78 @@ echo ""
 
 # 4. 卸载 Ollama
 echo -e "${YELLOW}[4/6] 卸载 Ollama...${NC}"
-if command -v ollama &> /dev/null; then
-    # 检查 Ollama 安装位置
-    OLLAMA_BIN=$(which ollama)
-    OLLAMA_DIR=$(dirname "$OLLAMA_BIN")
-    
-    echo -e "${YELLOW}  正在卸载 Ollama...${NC}"
-    
-    # 停止服务
+
+# 停止所有 Ollama 进程（无论命令是否存在）
+if pgrep -x ollama > /dev/null 2>&1; then
+    echo -e "${YELLOW}  停止 Ollama 服务进程...${NC}"
+    # 尝试优雅停止
+    pkill -x ollama 2>/dev/null || true
+    sleep 2
+    # 如果还在运行，强制停止
     if pgrep -x ollama > /dev/null 2>&1; then
-        pkill -x ollama 2>/dev/null || true
+        pkill -9 -x ollama 2>/dev/null || true
         sleep 1
     fi
-    
-    # 删除 Ollama 二进制文件
-    if [ -f "$OLLAMA_BIN" ]; then
-        sudo rm -f "$OLLAMA_BIN" 2>/dev/null && echo -e "${GREEN}✓ 已删除 Ollama 二进制文件${NC}" || echo -e "${YELLOW}  需要 sudo 权限删除${NC}"
+    echo -e "${GREEN}✓ Ollama 进程已停止${NC}"
+fi
+
+# 查找并删除 Ollama 二进制文件（多个可能位置）
+OLLAMA_PATHS=(
+    "/usr/local/bin/ollama"
+    "/usr/bin/ollama"
+    "$HOME/.local/bin/ollama"
+    "$(which ollama 2>/dev/null)"
+)
+
+OLLAMA_FOUND=0
+for path in "${OLLAMA_PATHS[@]}"; do
+    if [ -n "$path" ] && [ -f "$path" ]; then
+        echo -e "${YELLOW}  发现 Ollama: ${path}${NC}"
+        if sudo rm -f "$path" 2>/dev/null; then
+            echo -e "${GREEN}✓ 已删除 ${path}${NC}"
+            OLLAMA_FOUND=1
+        else
+            echo -e "${YELLOW}  需要 sudo 权限删除 ${path}${NC}"
+            echo -e "${YELLOW}  请手动运行: sudo rm -f ${path}${NC}"
+        fi
     fi
-    
-    # 删除 Ollama 数据目录（如果存在）
-    if [ -d "$HOME/.ollama" ]; then
-        rm -rf "$HOME/.ollama" && echo -e "${GREEN}✓ 已删除 Ollama 数据目录${NC}"
+done
+
+# 删除 Ollama 数据目录（多个可能位置）
+OLLAMA_DATA_DIRS=(
+    "$HOME/.ollama"
+    "/usr/local/share/ollama"
+    "/var/lib/ollama"
+)
+
+for dir in "${OLLAMA_DATA_DIRS[@]}"; do
+    if [ -d "$dir" ]; then
+        echo -e "${YELLOW}  发现数据目录: ${dir}${NC}"
+        if [ "$dir" = "$HOME/.ollama" ]; then
+            rm -rf "$dir" && echo -e "${GREEN}✓ 已删除 ${dir}${NC}"
+        else
+            if sudo rm -rf "$dir" 2>/dev/null; then
+                echo -e "${GREEN}✓ 已删除 ${dir}${NC}"
+            else
+                echo -e "${YELLOW}  需要 sudo 权限删除 ${dir}${NC}"
+                echo -e "${YELLOW}  请手动运行: sudo rm -rf ${dir}${NC}"
+            fi
+        fi
     fi
-    
-    # 尝试使用官方卸载脚本（如果存在）
-    if [ -f "/usr/local/bin/ollama-uninstall.sh" ] || [ -f "/tmp/ollama-uninstall.sh" ]; then
-        echo -e "${YELLOW}  使用官方卸载脚本...${NC}"
-        bash /usr/local/bin/ollama-uninstall.sh 2>/dev/null || bash /tmp/ollama-uninstall.sh 2>/dev/null || true
-    fi
-    
-    echo -e "${GREEN}✓ Ollama 已卸载${NC}"
-else
-    echo -e "${YELLOW}  Ollama 未安装，跳过${NC}"
+done
+
+# 删除 systemd 服务（如果存在）
+if [ -f "/etc/systemd/system/ollama.service" ] || [ -f "$HOME/.config/systemd/user/ollama.service" ]; then
+    echo -e "${YELLOW}  发现 systemd 服务，正在禁用...${NC}"
+    sudo systemctl stop ollama 2>/dev/null || systemctl --user stop ollama 2>/dev/null || true
+    sudo systemctl disable ollama 2>/dev/null || systemctl --user disable ollama 2>/dev/null || true
+    sudo rm -f /etc/systemd/system/ollama.service 2>/dev/null || rm -f "$HOME/.config/systemd/user/ollama.service" 2>/dev/null || true
+    sudo systemctl daemon-reload 2>/dev/null || systemctl --user daemon-reload 2>/dev/null || true
+    echo -e "${GREEN}✓ systemd 服务已移除${NC}"
+fi
+
+if [ $OLLAMA_FOUND -eq 0 ] && ! pgrep -x ollama > /dev/null 2>&1; then
+    echo -e "${YELLOW}  Ollama 未找到或已卸载${NC}"
 fi
 echo ""
 
