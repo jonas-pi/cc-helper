@@ -1,5 +1,8 @@
 # cc 命令助手 PowerShell 脚本
 
+# 版本信息
+$VERSION = "1.5.0"
+
 # Ollama 配置
 $OLLAMA_URL = "http://127.0.0.1:11434/v1"
 $MODEL = "phi3.5"
@@ -174,7 +177,7 @@ $firstArg = if ($args.Count -gt 0) { $args[0] } else { "" }
 
 # 预设指令: hello（不依赖模型）
 if ($firstArg -eq "hello") {
-    Write-Host "$EMOJI_HELLO cc v1.0" -ForegroundColor Gray
+    Write-Host "$EMOJI_HELLO cc v$VERSION" -ForegroundColor Gray
     Write-Host ""
     
     # 显示当前模型
@@ -257,8 +260,57 @@ if ($firstArg -eq "-r" -or $firstArg -eq "rest" -or $firstArg -eq "chat") {
 
 # 预设指令: -u 更新（不依赖模型）
 if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") {
-    Write-Host "updating..." -ForegroundColor Gray
+    Write-Host "正在检查更新..." -ForegroundColor Cyan
+    
     try {
+        # 获取远程版本号
+        $webClient = New-Object System.Net.WebClient
+        $webClient.Encoding = [System.Text.Encoding]::UTF8
+        $remoteVersion = $webClient.DownloadString("https://raw.githubusercontent.com/jonas-pi/cc-helper/main/VERSION").Trim()
+        
+        Write-Host "当前版本: " -NoNewline -ForegroundColor Gray
+        Write-Host "$VERSION" -ForegroundColor Yellow
+        Write-Host "最新版本: " -NoNewline -ForegroundColor Gray
+        Write-Host "$remoteVersion" -ForegroundColor Green
+        Write-Host ""
+        
+        # 版本比较
+        if ($VERSION -eq $remoteVersion) {
+            Write-Host "✓ 已是最新版本" -ForegroundColor Green
+            exit 0
+        }
+        
+        # 获取更新日志
+        Write-Host "更新内容:" -ForegroundColor Magenta
+        $changelog = $webClient.DownloadString("https://raw.githubusercontent.com/jonas-pi/cc-helper/main/CHANGELOG.md")
+        $changelogLines = $changelog -split "`n"
+        $inCurrentVersion = $false
+        $lineCount = 0
+        foreach ($line in $changelogLines) {
+            if ($line -match "## v$remoteVersion") {
+                $inCurrentVersion = $true
+                continue
+            }
+            if ($inCurrentVersion) {
+                if ($line -match "^## v" -and $line -notmatch "## v$remoteVersion") {
+                    break
+                }
+                if ($lineCount -lt 20) {
+                    Write-Host $line
+                    $lineCount++
+                }
+            }
+        }
+        Write-Host ""
+        
+        $confirm = Read-Host "是否更新到 v${remoteVersion}? [y/n]"
+        if ($confirm -ne "y" -and $confirm -ne "Y") {
+            Write-Host "已取消更新" -ForegroundColor Gray
+            exit 0
+        }
+        
+        Write-Host "正在下载最新版本..." -ForegroundColor Gray
+        
         $url = "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.ps1"
         $outputPath = "$env:USERPROFILE\cc.ps1"
         
@@ -267,9 +319,7 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
             Copy-Item $outputPath "$outputPath.backup" -Force | Out-Null
         }
 
-        # 使用 WebClient 并明确指定 UTF-8 编码下载
-        $webClient = New-Object System.Net.WebClient
-        $webClient.Encoding = [System.Text.Encoding]::UTF8
+        # 下载内容
         $content = $webClient.DownloadString($url)
         
         # 根据控制台编码选择保存编码
@@ -282,10 +332,41 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
         }
         
         [System.IO.File]::WriteAllText($outputPath, $content, $saveEncoding)
-        Write-Host "updated" -ForegroundColor Gray
+        Write-Host "✓ 更新完成！" -ForegroundColor Green
+        Write-Host "现在运行: " -NoNewline -ForegroundColor Gray
+        Write-Host "cc hello" -ForegroundColor Green
     } catch {
-        Write-Host "failed" -ForegroundColor Red
-        exit 1
+        Write-Host "无法获取版本信息" -ForegroundColor Red
+        $confirm = Read-Host "是否继续更新? [y/n]"
+        if ($confirm -ne "y" -and $confirm -ne "Y") {
+            exit 0
+        }
+        
+        Write-Host "正在下载..." -ForegroundColor Gray
+        try {
+            $webClient = New-Object System.Net.WebClient
+            $webClient.Encoding = [System.Text.Encoding]::UTF8
+            $url = "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.ps1"
+            $outputPath = "$env:USERPROFILE\cc.ps1"
+            
+            if (Test-Path $outputPath) {
+                Copy-Item $outputPath "$outputPath.backup" -Force | Out-Null
+            }
+            
+            $content = $webClient.DownloadString($url)
+            $currentEncoding = [Console]::OutputEncoding
+            if ($currentEncoding.CodePage -eq 936) {
+                $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+            } else {
+                $saveEncoding = New-Object System.Text.UTF8Encoding $true
+            }
+            
+            [System.IO.File]::WriteAllText($outputPath, $content, $saveEncoding)
+            Write-Host "✓ 更新完成" -ForegroundColor Green
+        } catch {
+            Write-Host "✗ 更新失败: $($_.Exception.Message)" -ForegroundColor Red
+            exit 1
+        }
     }
     exit 0
 }

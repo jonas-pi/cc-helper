@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# 版本信息
+VERSION="1.5.0"
+
 # Ollama 配置
 OLLAMA_URL="http://127.0.0.1:11434/v1"
 MODEL="qwen2.5:1.5b"
@@ -143,7 +146,7 @@ main() {
     
     # 预设指令: hello（不依赖模型）
     if [ "$first_arg" = "hello" ]; then
-        echo -e "\033[0;37m$EMOJI_HELLO cc v1.0\033[0m"
+        echo -e "\033[0;37m$EMOJI_HELLO cc v$VERSION\033[0m"
         echo ""
         
         # 显示当前模型
@@ -191,7 +194,46 @@ main() {
     
     # 预设指令: -u 更新（不依赖模型）
     if [ "$first_arg" = "-u" ] || [ "$first_arg" = "update" ] || [ "$first_arg" = "--update" ]; then
-        echo -e "\033[0;37mupdating...\033[0m"
+        echo -e "\033[1;36m正在检查更新...\033[0m"
+        
+        # 获取远程版本号
+        local remote_version=$(curl -fsSL "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/VERSION" 2>/dev/null)
+        
+        if [ -z "$remote_version" ]; then
+            echo -e "\033[1;31m无法获取版本信息\033[0m"
+            echo -e "\033[0;37m是否继续更新? [y/n]\033[0m"
+            read -r confirm < /dev/tty
+            if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+                exit 0
+            fi
+        else
+            echo -e "\033[0;37m当前版本: \033[1;33m$VERSION\033[0m"
+            echo -e "\033[0;37m最新版本: \033[1;32m$remote_version\033[0m"
+            echo ""
+            
+            # 版本比较
+            if [ "$VERSION" = "$remote_version" ]; then
+                echo -e "\033[1;32m✓ 已是最新版本\033[0m"
+                exit 0
+            fi
+            
+            # 获取更新日志
+            echo -e "\033[1;35m更新内容:\033[0m"
+            local changelog=$(curl -fsSL "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/CHANGELOG.md" 2>/dev/null | head -30)
+            if [ -n "$changelog" ]; then
+                echo "$changelog" | grep -A 20 "## v$remote_version" | head -20
+            fi
+            echo ""
+            
+            echo -e "\033[0;33m是否更新到 v$remote_version? [y/n]\033[0m"
+            read -r confirm < /dev/tty
+            if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+                echo -e "\033[0;37m已取消更新\033[0m"
+                exit 0
+            fi
+        fi
+        
+        echo -e "\033[0;37m正在下载最新版本...\033[0m"
         local update_url="https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.sh"
         local script_path="$HOME/cc.sh"
         
@@ -201,9 +243,10 @@ main() {
         # 下载
         if curl -fsSL "$update_url" -o "$script_path" 2>/dev/null; then
             chmod +x "$script_path"
-            echo -e "\033[0;37mupdated\033[0m"
+            echo -e "\033[1;32m✓ 更新完成！\033[0m"
+            echo -e "\033[0;37m现在运行: \033[1;32mcc hello\033[0m"
         else
-            echo -e "\033[1;31mfailed\033[0m"
+            echo -e "\033[1;31m✗ 更新失败\033[0m"
             exit 1
         fi
         exit 0
