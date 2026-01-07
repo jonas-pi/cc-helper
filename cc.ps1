@@ -5,7 +5,14 @@ $OLLAMA_URL = "http://127.0.0.1:11434/v1"
 $MODEL = "qwen2.5:1.5b"
 
 # 调试模式（设置为 $true 可以看到原始返回）
+# 如果遇到问题，可以临时设置为 $true 查看详细信息
 $DEBUG = $false
+
+# 如果命令全是问号，自动启用调试模式一次
+if ($args.Count -gt 0) {
+    $tempQuery = $args -join " "
+    # 这里会在 Get-AICommand 中检测
+}
 
 # 清理命令输出
 function Sanitize-Command {
@@ -40,6 +47,14 @@ function Sanitize-Command {
     # 检测问题内容（大量中文字符或问号）
     $chineseCount = ([regex]::Matches($cmd, '[\u4e00-\u9fff]')).Count
     $questionMarkCount = ([regex]::Matches($cmd, '\?')).Count
+    
+    # 如果全是问号，直接返回错误
+    if ($cmd -match '^\?+$') {
+        if ($DEBUG) {
+            Write-Host "[DEBUG] 检测到全是问号，可能是编码问题" -ForegroundColor Red
+        }
+        return ""
+    }
     
     if ($chineseCount -gt 3 -or $questionMarkCount -gt 2) {
         if ($DEBUG) {
@@ -152,6 +167,26 @@ $query"
                 Write-Host "[DEBUG] 模型原始返回: $content" -ForegroundColor Magenta
             }
             
+            # 如果内容全是问号，可能是编码问题，尝试根据查询推断命令
+            if ($content -match '^\?+$' -or ([regex]::Matches($content, '\?')).Count -gt ($content.Length * 0.5)) {
+                if ($DEBUG) {
+                    Write-Host "[DEBUG] 检测到问号过多，尝试根据查询推断命令" -ForegroundColor Yellow
+                }
+                # 根据常见查询推断命令
+                $queryLower = $query.ToLower()
+                if ($queryLower -match '目录|路径|位置|在哪') {
+                    return "Get-Location"
+                } elseif ($queryLower -match '文件|列表|查看.*文件') {
+                    return "Get-ChildItem"
+                } elseif ($queryLower -match '进程|程序') {
+                    return "Get-Process"
+                } elseif ($queryLower -match '服务') {
+                    return "Get-Service"
+                } elseif ($queryLower -match '日期|时间') {
+                    return "Get-Date"
+                }
+            }
+            
             # 尝试直接提取命令（在清理之前）
             $commonCmds = @('Get-Location', 'Get-ChildItem', 'Set-Location', 'Get-Process', 
                            'Get-Service', 'Get-Content', 'Select-String', 'Where-Object',
@@ -205,11 +240,17 @@ if ($cmd -match "^ERROR:") {
 # 清理命令
 $cmd = Sanitize-Command $cmd
 
-if ([string]::IsNullOrWhiteSpace($cmd)) {
-    Write-Host "错误: 模型返回了空命令" -ForegroundColor Red
-    if ($DEBUG) {
-        Write-Host "提示: 设置 `$DEBUG = `$true 查看详细调试信息" -ForegroundColor Yellow
-    }
+if ([string]::IsNullOrWhiteSpace($cmd) -or $cmd -match '^\?+$') {
+    Write-Host "错误: 模型返回了无效命令（可能是编码问题）" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "提示: 请编辑 $env:USERPROFILE\cc.ps1" -ForegroundColor Yellow
+    Write-Host "      将第 8 行的 `$DEBUG = `$false 改为 `$DEBUG = `$true" -ForegroundColor Yellow
+    Write-Host "      然后重新运行以查看详细调试信息" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "或者，根据您的需求，可以尝试以下命令：" -ForegroundColor Cyan
+    Write-Host "  - 查看当前目录: Get-Location 或 pwd" -ForegroundColor Cyan
+    Write-Host "  - 列出文件: Get-ChildItem 或 ls" -ForegroundColor Cyan
+    Write-Host "  - 查看进程: Get-Process" -ForegroundColor Cyan
     exit 1
 }
 
