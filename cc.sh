@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="1.8.0"
+VERSION="2.0.0"
 
 # 配置文件路径
 CONFIG_FILE="$HOME/.cc_config"
@@ -180,29 +180,44 @@ main() {
             echo -e "\033[0;37m当前模式: \033[1;36m工作模式\033[0m \033[0;37m(命令助手)\033[0m"
         fi
         
-        # 根据 API 类型显示模型列表
+        echo ""
+        echo -e "\033[0;37m准备好了~ 有什么可以帮你的吗？\033[0m"
+        echo -e "\033[0;90m提示: 使用 \033[1;32mcc list\033[0;90m 查看模型列表\033[0m"
+        exit 0
+    fi
+    
+    # 预设指令: list 列出模型
+    if [ "$first_arg" = "list" ] || [ "$first_arg" = "-list" ] || [ "$first_arg" = "--list" ]; then
         if [ "$API_TYPE" = "ollama" ]; then
             # Ollama: 列出本地安装的模型
             local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
-            if [ -n "$models" ]; then
-                echo ""
-                echo -e "\033[0;37m已安装的模型:\033[0m"
-                while IFS= read -r model; do
-                    if [ "$model" = "$MODEL" ]; then
-                        echo -e "  $BULLET_CURRENT \033[1;32m$model\033[0m"
-                    else
-                        echo -e "  $BULLET $model"
-                    fi
-                done <<< "$models"
+            if [ -z "$models" ]; then
+                echo -e "\033[0;33m未找到已安装的模型\033[0m"
+                echo -e "\033[0;37m使用 \033[1;32mcc -add\033[0;37m 安装新模型\033[0m"
+                exit 0
             fi
-        else
-            # 其他 API: 显示当前配置的 API 地址
+            
+            echo -e "\033[0;37m已安装的模型:\033[0m"
             echo ""
-            echo -e "\033[0;37mAPI 地址: \033[0;90m$OLLAMA_URL\033[0m"
+            while IFS= read -r model; do
+                if [ "$model" = "$MODEL" ]; then
+                    echo -e "  $BULLET_CURRENT \033[1;32m$model\033[0m \033[0;90m(当前)\033[0m"
+                else
+                    echo -e "  $BULLET $model"
+                fi
+            done <<< "$models"
+            echo ""
+            echo -e "\033[0;90m使用 \033[1;32mcc -change\033[0;90m 切换模型\033[0m"
+        else
+            # 其他 API: 显示 API 信息
+            echo -e "\033[0;37m当前 API 配置:\033[0m"
+            echo ""
+            echo -e "  API 类型: \033[1;36m$API_TYPE\033[0m"
+            echo -e "  API 地址: \033[0;90m$OLLAMA_URL\033[0m"
+            echo -e "  当前模型: \033[1;32m$MODEL\033[0m"
+            echo ""
+            echo -e "\033[0;90m使用 \033[1;32mcc -config\033[0;90m 更改配置\033[0m"
         fi
-        
-        echo ""
-        echo -e "\033[0;37m准备好了~ 有什么可以帮你的吗？\033[0m"
         exit 0
     fi
     
@@ -604,7 +619,8 @@ EOF
         echo -e "\033[1;33m预设指令:\033[0m"
         echo ""
         echo -e "  \033[1;35m信息查询\033[0m"
-        echo -e "    \033[0;32mcc hello\033[0m        显示版本、模型和系统信息"
+        echo -e "    \033[0;32mcc hello\033[0m        显示版本和配置信息"
+        echo -e "    \033[0;32mcc list\033[0m         列出所有可用模型"
         echo -e "    \033[0;32mcc -h, --help\033[0m   显示此帮助信息"
         echo ""
         echo -e "  \033[1;35m模式切换\033[0m"

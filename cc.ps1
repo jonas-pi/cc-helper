@@ -1,7 +1,7 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "1.9.0"
+$VERSION = "2.0.0"
 
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
@@ -253,37 +253,69 @@ if ($firstArg -eq "hello") {
         Write-Host "PowerShell" -ForegroundColor Blue
     }
     
-    # 根据 API 类型显示模型列表
+    Write-Host ""
+    Write-Host "准备好了~ 有什么可以帮你的吗？" -ForegroundColor Gray
+    Write-Host "提示: 使用 " -NoNewline -ForegroundColor DarkGray
+    Write-Host "cc list" -NoNewline -ForegroundColor Green
+    Write-Host " 查看模型列表" -ForegroundColor DarkGray
+    exit 0
+}
+
+# 预设指令: list 列出模型
+if ($firstArg -eq "list" -or $firstArg -eq "-list" -or $firstArg -eq "--list") {
     if ($API_TYPE -eq "ollama") {
         # Ollama: 列出本地安装的模型
         $modelList = ollama list 2>$null
-        if ($modelList) {
-            $models = $modelList | Select-Object -Skip 1 | ForEach-Object {
-                ($_ -split '\s+')[0]
-            } | Where-Object { $_ -ne "" }
-            
-            if ($models.Count -gt 0) {
-                Write-Host ""
-                Write-Host "已安装的模型:" -ForegroundColor Gray
-                foreach ($model in $models) {
-                    if ($model -eq $MODEL) {
-                        Write-Host "  $BULLET_CURRENT " -NoNewline
-                        Write-Host "$model" -ForegroundColor Green
-                    } else {
-                        Write-Host "  $BULLET $model"
-                    }
-                }
+        if (-not $modelList) {
+            Write-Host "未找到已安装的模型" -ForegroundColor Yellow
+            Write-Host "使用 " -NoNewline -ForegroundColor Gray
+            Write-Host "cc -add" -NoNewline -ForegroundColor Green
+            Write-Host " 安装新模型" -ForegroundColor Gray
+            exit 0
+        }
+        
+        $models = $modelList | Select-Object -Skip 1 | ForEach-Object {
+            ($_ -split '\s+')[0]
+        } | Where-Object { $_ -ne "" }
+        
+        if ($models.Count -eq 0) {
+            Write-Host "未找到已安装的模型" -ForegroundColor Yellow
+            Write-Host "使用 " -NoNewline -ForegroundColor Gray
+            Write-Host "cc -add" -NoNewline -ForegroundColor Green
+            Write-Host " 安装新模型" -ForegroundColor Gray
+            exit 0
+        }
+        
+        Write-Host "已安装的模型:" -ForegroundColor Gray
+        Write-Host ""
+        foreach ($model in $models) {
+            if ($model -eq $MODEL) {
+                Write-Host "  $BULLET_CURRENT " -NoNewline
+                Write-Host "$model" -NoNewline -ForegroundColor Green
+                Write-Host " (当前)" -ForegroundColor DarkGray
+            } else {
+                Write-Host "  $BULLET $model"
             }
         }
-    } else {
-        # 其他 API: 显示当前配置的 API 地址
         Write-Host ""
-        Write-Host "API 地址: " -NoNewline -ForegroundColor Gray
+        Write-Host "使用 " -NoNewline -ForegroundColor DarkGray
+        Write-Host "cc -change" -NoNewline -ForegroundColor Green
+        Write-Host " 切换模型" -ForegroundColor DarkGray
+    } else {
+        # 其他 API: 显示 API 信息
+        Write-Host "当前 API 配置:" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "  API 类型: " -NoNewline
+        Write-Host "$API_TYPE" -ForegroundColor Cyan
+        Write-Host "  API 地址: " -NoNewline
         Write-Host "$OLLAMA_URL" -ForegroundColor DarkGray
+        Write-Host "  当前模型: " -NoNewline
+        Write-Host "$MODEL" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "使用 " -NoNewline -ForegroundColor DarkGray
+        Write-Host "cc -config" -NoNewline -ForegroundColor Green
+        Write-Host " 更改配置" -ForegroundColor DarkGray
     }
-    
-    Write-Host ""
-    Write-Host "准备好了~ 有什么可以帮你的吗？" -ForegroundColor Gray
     exit 0
 }
 
@@ -868,7 +900,8 @@ if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $fir
     Write-Host "预设指令:" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "  信息查询" -ForegroundColor Magenta
-    Write-Host "    " -NoNewline; Write-Host "cc hello" -ForegroundColor Green -NoNewline; Write-Host "        显示版本、模型和系统信息"
+    Write-Host "    " -NoNewline; Write-Host "cc hello" -ForegroundColor Green -NoNewline; Write-Host "        显示版本和配置信息"
+    Write-Host "    " -NoNewline; Write-Host "cc list" -ForegroundColor Green -NoNewline; Write-Host "         列出所有可用模型"
     Write-Host "    " -NoNewline; Write-Host "cc -h, --help" -ForegroundColor Green -NoNewline; Write-Host "   显示此帮助信息"
     Write-Host ""
     Write-Host "  模式切换" -ForegroundColor Magenta
