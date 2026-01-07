@@ -1,7 +1,7 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "1.6.0"
+$VERSION = "1.7.0"
 
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
@@ -530,12 +530,15 @@ if ($firstArg -eq "-config" -or $firstArg -eq "config") {
     }
     Write-Host ""
     Write-Host "可选 API 类型:" -ForegroundColor Magenta
-    Write-Host "  1. " -NoNewline; Write-Host "ollama" -ForegroundColor Green -NoNewline; Write-Host "     - 本地 Ollama（默认，免费）"
-    Write-Host "  2. " -NoNewline; Write-Host "openai" -ForegroundColor Yellow -NoNewline; Write-Host "     - OpenAI GPT 系列"
-    Write-Host "  3. " -NoNewline; Write-Host "anthropic" -ForegroundColor Magenta -NoNewline; Write-Host "  - Anthropic Claude 系列"
-    Write-Host "  4. " -NoNewline; Write-Host "custom" -ForegroundColor Cyan -NoNewline; Write-Host "     - 自定义兼容 OpenAI API 的服务"
+    Write-Host "  1. " -NoNewline; Write-Host "ollama" -ForegroundColor Green -NoNewline; Write-Host "       - 本地 Ollama（默认，免费）"
+    Write-Host "  2. " -NoNewline; Write-Host "openai" -ForegroundColor Yellow -NoNewline; Write-Host "       - OpenAI GPT 系列"
+    Write-Host "  3. " -NoNewline; Write-Host "anthropic" -ForegroundColor Magenta -NoNewline; Write-Host "    - Anthropic Claude 系列"
+    Write-Host "  4. " -NoNewline; Write-Host "deepseek" -ForegroundColor Blue -NoNewline; Write-Host "     - DeepSeek（国内，高性价比）"
+    Write-Host "  5. " -NoNewline; Write-Host "doubao" -ForegroundColor Cyan -NoNewline; Write-Host "       - 豆包/火山方舟（字节跳动）"
+    Write-Host "  6. " -NoNewline; Write-Host "qwen" -ForegroundColor Green -NoNewline; Write-Host "         - 通义千问/阿里云百炼"
+    Write-Host "  7. " -NoNewline; Write-Host "custom" -ForegroundColor Cyan -NoNewline; Write-Host "       - 自定义兼容 OpenAI API 的服务"
     Write-Host ""
-    Write-Host "选择 API 类型 (1-4，直接回车保持当前): " -ForegroundColor Yellow -NoNewline
+    Write-Host "选择 API 类型 (1-7，直接回车保持当前): " -ForegroundColor Yellow -NoNewline
     $apiChoice = Read-Host
     
     switch ($apiChoice) {
@@ -568,6 +571,34 @@ if ($firstArg -eq "-config" -or $firstArg -eq "config") {
             $MODEL = if ($model) { $model } else { "claude-3-haiku-20240307" }
         }
         "4" {
+            $API_TYPE = "deepseek"
+            $OLLAMA_URL = "https://api.deepseek.com"
+            Write-Host "DeepSeek API Key: " -ForegroundColor Yellow -NoNewline
+            $API_KEY = Read-Host
+            Write-Host "模型名称 [deepseek-chat]: " -ForegroundColor Yellow -NoNewline
+            $model = Read-Host
+            $MODEL = if ($model) { $model } else { "deepseek-chat" }
+        }
+        "5" {
+            $API_TYPE = "doubao"
+            Write-Host "火山方舟 API 地址 [https://ark.cn-beijing.volces.com/api/v3]: " -ForegroundColor Yellow -NoNewline
+            $url = Read-Host
+            $OLLAMA_URL = if ($url) { $url } else { "https://ark.cn-beijing.volces.com/api/v3" }
+            Write-Host "火山方舟 API Key: " -ForegroundColor Yellow -NoNewline
+            $API_KEY = Read-Host
+            Write-Host "模型名称 (如 doubao-pro-32k): " -ForegroundColor Yellow -NoNewline
+            $MODEL = Read-Host
+        }
+        "6" {
+            $API_TYPE = "qwen"
+            $OLLAMA_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            Write-Host "阿里云百炼 API Key: " -ForegroundColor Yellow -NoNewline
+            $API_KEY = Read-Host
+            Write-Host "模型名称 [qwen-plus]: " -ForegroundColor Yellow -NoNewline
+            $model = Read-Host
+            $MODEL = if ($model) { $model } else { "qwen-plus" }
+        }
+        "7" {
             $API_TYPE = "custom"
             Write-Host "API 地址: " -ForegroundColor Yellow -NoNewline
             $OLLAMA_URL = Read-Host

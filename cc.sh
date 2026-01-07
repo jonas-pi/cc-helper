@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="1.6.0"
+VERSION="1.7.0"
 
 # 配置文件路径
 CONFIG_FILE="$HOME/.cc_config"
@@ -368,12 +368,15 @@ main() {
         [ -n "$API_KEY" ] && echo -e "  API Key: \033[0;37m${API_KEY:0:10}...\033[0m" || echo -e "  API Key: \033[0;33m(未设置)\033[0m"
         echo ""
         echo -e "\033[1;35m可选 API 类型:\033[0m"
-        echo -e "  1. \033[1;32mollama\033[0m     - 本地 Ollama（默认，免费）"
-        echo -e "  2. \033[1;33mopenai\033[0m     - OpenAI GPT 系列"
-        echo -e "  3. \033[1;35manthropic\033[0m  - Anthropic Claude 系列"
-        echo -e "  4. \033[1;36mcustom\033[0m     - 自定义兼容 OpenAI API 的服务"
+        echo -e "  1. \033[1;32mollama\033[0m       - 本地 Ollama（默认，免费）"
+        echo -e "  2. \033[1;33mopenai\033[0m       - OpenAI GPT 系列"
+        echo -e "  3. \033[1;35manthropic\033[0m    - Anthropic Claude 系列"
+        echo -e "  4. \033[1;34mdeepseek\033[0m     - DeepSeek（国内，高性价比）"
+        echo -e "  5. \033[1;36mdoubao\033[0m       - 豆包/火山方舟（字节跳动）"
+        echo -e "  6. \033[1;32mqwen\033[0m         - 通义千问/阿里云百炼"
+        echo -e "  7. \033[1;36mcustom\033[0m       - 自定义兼容 OpenAI API 的服务"
         echo ""
-        echo -ne "\033[0;33m选择 API 类型 (1-4，直接回车保持当前): \033[0m"
+        echo -ne "\033[0;33m选择 API 类型 (1-7，直接回车保持当前): \033[0m"
         read -r api_choice < /dev/tty
         
         case "$api_choice" in
@@ -408,6 +411,38 @@ main() {
                 MODEL="${model:-claude-3-haiku-20240307}"
                 ;;
             4)
+                API_TYPE="deepseek"
+                OLLAMA_URL="https://api.deepseek.com"
+                echo -ne "\033[0;33mDeepSeek API Key: \033[0m"
+                read -r key < /dev/tty
+                API_KEY="$key"
+                echo -ne "\033[0;33m模型名称 [deepseek-chat]: \033[0m"
+                read -r model < /dev/tty
+                MODEL="${model:-deepseek-chat}"
+                ;;
+            5)
+                API_TYPE="doubao"
+                echo -ne "\033[0;33m火山方舟 API 地址 [https://ark.cn-beijing.volces.com/api/v3]: \033[0m"
+                read -r url < /dev/tty
+                OLLAMA_URL="${url:-https://ark.cn-beijing.volces.com/api/v3}"
+                echo -ne "\033[0;33m火山方舟 API Key: \033[0m"
+                read -r key < /dev/tty
+                API_KEY="$key"
+                echo -ne "\033[0;33m模型名称 (如 doubao-pro-32k): \033[0m"
+                read -r model < /dev/tty
+                MODEL="$model"
+                ;;
+            6)
+                API_TYPE="qwen"
+                OLLAMA_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
+                echo -ne "\033[0;33m阿里云百炼 API Key: \033[0m"
+                read -r key < /dev/tty
+                API_KEY="$key"
+                echo -ne "\033[0;33m模型名称 [qwen-plus]: \033[0m"
+                read -r model < /dev/tty
+                MODEL="${model:-qwen-plus}"
+                ;;
+            7)
                 API_TYPE="custom"
                 echo -ne "\033[0;33mAPI 地址: \033[0m"
                 read -r url < /dev/tty

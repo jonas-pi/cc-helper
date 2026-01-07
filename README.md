@@ -102,7 +102,10 @@ cc -config
 1. **Ollama**（默认）- 本地运行，完全免费
 2. **OpenAI** - GPT-3.5/GPT-4，需要 API Key
 3. **Anthropic** - Claude 3 系列，需要 API Key
-4. **自定义** - 任何兼容 OpenAI API 格式的服务（Groq, Together AI 等）
+4. **DeepSeek** - 国内高性价比，支持 deepseek-chat
+5. **豆包/火山方舟** - 字节跳动，支持 doubao 系列
+6. **通义千问/阿里云百炼** - 阿里云，支持 qwen-plus 等
+7. **自定义** - 任何兼容 OpenAI API 格式的服务（Groq, Together AI 等）
 
 **配置示例：**
 
@@ -111,7 +114,15 @@ cc -config
 cc -config
 # 选择 2 → 输入 API Key → 输入模型名称
 
-# 现在 cc 已经使用 OpenAI 了
+# 切换到 DeepSeek（国内推荐）
+cc -config
+# 选择 4 → 输入 API Key → 输入 deepseek-chat
+
+# 切换到阿里云通义千问
+cc -config
+# 选择 6 → 输入 API Key → 输入 qwen-plus
+
+# 现在 cc 已经使用新的 API 了
 cc hello  # 查看当前配置
 ```
 
