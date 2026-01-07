@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="0.2.3"
+VERSION="0.3.0"
 
 # 配置文件路径
 CONFIG_FILE="$HOME/.cc_config"

@@ -1,5 +1,64 @@
 # CC 命令助手 - 更新日志
 
+## v0.3.0 (2026-01-07) - Tab 补全与功能增强
+
+### ✨ 重大新功能
+
+- **Tab 补全支持**（`cc -<Tab>` 查看所有命令）
+  - 新增 `cc-completion.bash` for Linux/Bash
+  - 新增 `cc-completion.ps1` for Windows/PowerShell
+  - 支持所有预设命令的智能补全
+  - 安装脚本自动配置补全功能
+  - `cc -u` 更新时自动更新补全脚本
+
+- **增强 cc -change 命令**
+  - Ollama: 列出本地已下载的模型供切换
+  - 云端 API: 列出常见模型 + 支持手动输入
+    * OpenAI: gpt-3.5-turbo, gpt-4, gpt-4o 等
+    * Anthropic: claude-3-haiku, claude-3-sonnet 等
+    * DeepSeek: deepseek-chat, deepseek-coder
+    * 通义千问: qwen-plus, qwen-turbo, qwen-max
+    * 豆包: doubao-pro-32k, doubao-lite-32k
+  - 切换后提示使用 `cc testapi` 测试新模型
+
+### 🐛 关键 Bug 修复
+
+- **修复 Windows GBK 环境下的乱码问题**
+  - 问题原因：在 GBK 环境下更新时，主脚本被保存为 GBK 编码，导致中文字符显示为 `????????????????`
+  - 解决方案：主脚本始终使用 UTF-8 with BOM 保存，PowerShell 能正确识别
+  - 配置文件继续根据环境编码保存（兼容性）
+
+- **修复更新日志解析问题**
+  - Linux: 增加读取行数，使用 awk 正确提取版本更新内容
+  - Windows: 移除行数限制，显示完整的版本更新内容
+
+### 🎭 性格设定
+
+- **将 cc 的性格特点写入休息模式提示词**
+  - 性格：表面高冷实际上内心可爱热情的女孩子
+  - 工作时专注高效（工作模式）
+  - 休息时可爱热情（休息模式）
+  - 回复保持简洁、友好，偶尔展现可爱的一面
+
+### 🔧 改进
+
+- **cc -u 更新命令增强**
+  - 自动更新 Tab 补全脚本
+  - 自动检查并添加补全配置到 .bashrc 或 Profile
+  - 更好的错误处理和提示信息
+
+- **配置文件更新逻辑优化**
+  - 更健壮的正则表达式匹配
+  - 如果找不到设置，自动添加到配置文件末尾
+  - 立即更新当前会话的变量
+
+### 📝 文档
+
+- README 添加 Tab 补全特性说明
+- 提示用户可以使用 `cc -<Tab>` 查看所有命令
+
+---
+
 ## v0.2.3 (2026-01-07) - 修复 PowerShell 流式传输 Bug
 
 ### 🐛 关键 Bug 修复
