@@ -1,7 +1,7 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "0.1.2"
+$VERSION = "0.1.4"
 
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
@@ -477,17 +477,22 @@ if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-tes
 
 # 预设指令: -w 工作模式
 if ($firstArg -eq "-w" -or $firstArg -eq "work") {
-    $scriptPath = "$env:USERPROFILE\cc.ps1"
-    $content = Get-Content $scriptPath -Raw
-    $content = $content -replace '^\$MODE = ".*"', '$MODE = "work"'
-    
-    $currentEncoding = [Console]::OutputEncoding
-    if ($currentEncoding.CodePage -eq 936) {
-        $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+    # 更新配置文件中的 MODE
+    if (Test-Path $CONFIG_FILE) {
+        $content = Get-Content $CONFIG_FILE -Raw
+        $content = $content -replace '^\$MODE = ".*"', '$MODE = "work"'
+        
+        $currentEncoding = [Console]::OutputEncoding
+        if ($currentEncoding.CodePage -eq 936) {
+            $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+        } else {
+            $saveEncoding = New-Object System.Text.UTF8Encoding $true
+        }
+        [System.IO.File]::WriteAllText($CONFIG_FILE, $content, $saveEncoding)
     } else {
-        $saveEncoding = New-Object System.Text.UTF8Encoding $true
+        # 如果配置文件不存在，创建它
+        '$MODE = "work"' | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
     }
-    [System.IO.File]::WriteAllText($scriptPath, $content, $saveEncoding)
     
     Write-Host "已切换到工作模式" -ForegroundColor Cyan -NoNewline
     Write-Host " - 专注命令，高效执行" -ForegroundColor Gray
@@ -496,20 +501,110 @@ if ($firstArg -eq "-w" -or $firstArg -eq "work") {
 
 # 预设指令: -r 休息模式
 if ($firstArg -eq "-r" -or $firstArg -eq "rest" -or $firstArg -eq "chat") {
-    $scriptPath = "$env:USERPROFILE\cc.ps1"
-    $content = Get-Content $scriptPath -Raw
-    $content = $content -replace '^\$MODE = ".*"', '$MODE = "rest"'
-    
-    $currentEncoding = [Console]::OutputEncoding
-    if ($currentEncoding.CodePage -eq 936) {
-        $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+    # 更新配置文件中的 MODE
+    if (Test-Path $CONFIG_FILE) {
+        $content = Get-Content $CONFIG_FILE -Raw
+        $content = $content -replace '^\$MODE = ".*"', '$MODE = "rest"'
+        
+        $currentEncoding = [Console]::OutputEncoding
+        if ($currentEncoding.CodePage -eq 936) {
+            $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+        } else {
+            $saveEncoding = New-Object System.Text.UTF8Encoding $true
+        }
+        [System.IO.File]::WriteAllText($CONFIG_FILE, $content, $saveEncoding)
     } else {
-        $saveEncoding = New-Object System.Text.UTF8Encoding $true
+        # 如果配置文件不存在，创建它
+        '$MODE = "rest"' | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
     }
-    [System.IO.File]::WriteAllText($scriptPath, $content, $saveEncoding)
     
     Write-Host "已切换到休息模式" -ForegroundColor Magenta -NoNewline
     Write-Host " - 放松一下，聊聊天吧~" -ForegroundColor Gray
+    exit 0
+}
+
+# 预设指令: -fix 修复编码
+if ($firstArg -eq "-fix" -or $firstArg -eq "fix" -or $firstArg -eq "-fix-encoding") {
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+    Write-Host "            编码检测与修复              " -ForegroundColor Cyan
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+    Write-Host ""
+    
+    # 检测当前编码
+    $currentEncoding = [Console]::OutputEncoding
+    $currentCodePage = $currentEncoding.CodePage
+    $encodingName = $currentEncoding.EncodingName
+    
+    Write-Host "当前系统信息:" -ForegroundColor Gray
+    Write-Host "  控制台编码: " -NoNewline
+    Write-Host "$encodingName" -ForegroundColor Green
+    Write-Host "  CodePage: " -NoNewline
+    Write-Host "$currentCodePage" -ForegroundColor Green
+    Write-Host "  是否 GBK: " -NoNewline
+    if ($currentCodePage -eq 936) {
+        Write-Host "是 (简体中文)" -ForegroundColor Yellow
+    } else {
+        Write-Host "否 (UTF-8)" -ForegroundColor Green
+    }
+    Write-Host ""
+    
+    # 测试字符显示
+    Write-Host "字符显示测试:" -ForegroundColor Gray
+    if ($currentCodePage -eq 936) {
+        Write-Host "  表情: ^_^" -ForegroundColor Green
+        Write-Host "  列表: - 项目1 - 项目2" -ForegroundColor Green
+        Write-Host "  当前: * 当前项" -ForegroundColor Green
+    } else {
+        Write-Host "  表情: (｡･ω･｡)" -ForegroundColor Green
+        Write-Host "  列表: • 项目1 • 项目2" -ForegroundColor Green
+        Write-Host "  当前: • 当前项" -ForegroundColor Green
+    }
+    Write-Host ""
+    
+    # 提供修复选项
+    Write-Host "如果你看到乱码，可以尝试以下操作:" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "1. 切换到 UTF-8 编码:" -ForegroundColor Cyan
+    Write-Host "   [Console]::OutputEncoding = [System.Text.Encoding]::UTF8" -ForegroundColor Gray
+    Write-Host "   chcp 65001" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "2. 切换到 GBK 编码 (简体中文):" -ForegroundColor Cyan
+    Write-Host "   [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(936)" -ForegroundColor Gray
+    Write-Host "   chcp 936" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "3. 重新安装 cc (自动检测编码):" -ForegroundColor Cyan
+    Write-Host "   irm https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.ps1 | iex" -ForegroundColor Gray
+    Write-Host ""
+    
+    Write-Host "是否要现在切换编码? [1=UTF-8, 2=GBK, n=取消]: " -NoNewline -ForegroundColor Yellow
+    $choice = Read-Host
+    
+    switch ($choice) {
+        "1" {
+            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+            Write-Host ""
+            Write-Host "✓ 已切换到 UTF-8 编码" -ForegroundColor Green
+            Write-Host "测试: (｡･ω･｡) • 项目" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "注意: 这个设置仅在当前会话有效" -ForegroundColor Yellow
+            Write-Host "要永久生效，请在 PowerShell 配置文件中添加:" -ForegroundColor Gray
+            Write-Host '  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8' -ForegroundColor Gray
+        }
+        "2" {
+            [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(936)
+            Write-Host ""
+            Write-Host "✓ 已切换到 GBK 编码" -ForegroundColor Green
+            Write-Host "测试: ^_^ - 项目" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "注意: 这个设置仅在当前会话有效" -ForegroundColor Yellow
+            Write-Host "要永久生效，请在 PowerShell 配置文件中添加:" -ForegroundColor Gray
+            Write-Host '  [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(936)' -ForegroundColor Gray
+        }
+        default {
+            Write-Host "已取消" -ForegroundColor Gray
+        }
+    }
+    
     exit 0
 }
 
@@ -1052,7 +1147,8 @@ if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $fir
     Write-Host "cc hello" -NoNewline -ForegroundColor Green; Write-Host "       " -NoNewline; Write-Host "cc list" -NoNewline -ForegroundColor Green; Write-Host "        " -NoNewline; Write-Host "cc testapi" -ForegroundColor Green
     Write-Host "cc -w" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -r" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -config" -ForegroundColor Green
     Write-Host "cc -change" -NoNewline -ForegroundColor Green; Write-Host "     " -NoNewline; Write-Host "cc -add" -NoNewline -ForegroundColor Green; Write-Host "        " -NoNewline; Write-Host "cc -del" -ForegroundColor Green
-    Write-Host "cc -shell" -NoNewline -ForegroundColor Green; Write-Host "      " -NoNewline; Write-Host "cc -u" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -h" -ForegroundColor Green
+    Write-Host "cc -shell" -NoNewline -ForegroundColor Green; Write-Host "      " -NoNewline; Write-Host "cc -fix" -NoNewline -ForegroundColor Green; Write-Host "         " -NoNewline; Write-Host "cc -u" -ForegroundColor Green
+    Write-Host "cc -h" -ForegroundColor Green
     exit 0
 }
 

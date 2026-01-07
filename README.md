@@ -120,6 +120,7 @@ cc 列出所有进程          # 生成: tasklist
 | `cc -change` | 切换使用的模型 |
 | `cc -add` | 安装新模型 |
 | `cc -del` | 删除模型 |
+| `cc -fix` | 检测和修复编码问题 |
 | `cc -config` | 配置 API（接入其他 AI 服务） |
 
 ## API 配置 - 成长空间

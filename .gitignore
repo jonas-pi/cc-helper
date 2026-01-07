@@ -9,7 +9,12 @@
 .DS_Store
 Thumbs.db
 
-# 用户配置（不应提交）
-.bashrc.backup
+# 用户配置（不应提交 - 包含 API Key）
+.cc_config
+.cc_config.ps1
+*.backup
 
+# 示例配置文件（可以提交）
+# .cc_config.example
+# .cc_config.ps1.example
 

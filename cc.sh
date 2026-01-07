@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="0.1.2"
+VERSION="0.1.4"
 
 # 配置文件路径
 CONFIG_FILE="$HOME/.cc_config"
@@ -134,20 +134,20 @@ ${query}
             max_tokens: 64
         }')
 
-    # 发送 API 请求
+    # 发送 API 请求（性能优化：使用 --compressed 启用压缩，--http2 使用 HTTP/2）
     local response
     if [ -n "$API_KEY" ]; then
-        response=$(curl -s -X POST "${OLLAMA_URL}/chat/completions" \
+        response=$(curl -s --compressed -X POST "${OLLAMA_URL}/chat/completions" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $API_KEY" \
             -d "$json_data" 2>&1)
     elif [ "$API_TYPE" = "ollama" ]; then
-        response=$(curl -s -X POST "${OLLAMA_URL}/chat/completions" \
+        response=$(curl -s --compressed -X POST "${OLLAMA_URL}/chat/completions" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ollama" \
             -d "$json_data" 2>&1)
     else
-        response=$(curl -s -X POST "${OLLAMA_URL}/chat/completions" \
+        response=$(curl -s --compressed -X POST "${OLLAMA_URL}/chat/completions" \
             -H "Content-Type: application/json" \
             -d "$json_data" 2>&1)
     fi
@@ -350,15 +350,71 @@ main() {
     
     # 预设指令: -w 工作模式
     if [ "$first_arg" = "-w" ] || [ "$first_arg" = "work" ]; then
-        sed -i 's/^MODE=.*/MODE="work"/' "$HOME/cc.sh"
+        # 更新配置文件中的 MODE
+        if [ -f "$CONFIG_FILE" ]; then
+            sed -i 's/^MODE=.*/MODE="work"/' "$CONFIG_FILE"
+        else
+            # 如果配置文件不存在，创建它
+            echo 'MODE="work"' >> "$CONFIG_FILE"
+        fi
         echo -e "\033[1;36m已切换到工作模式\033[0m \033[0;37m- 专注命令，高效执行\033[0m"
         exit 0
     fi
     
     # 预设指令: -r 休息模式
     if [ "$first_arg" = "-r" ] || [ "$first_arg" = "rest" ] || [ "$first_arg" = "chat" ]; then
-        sed -i 's/^MODE=.*/MODE="rest"/' "$HOME/cc.sh"
+        # 更新配置文件中的 MODE
+        if [ -f "$CONFIG_FILE" ]; then
+            sed -i 's/^MODE=.*/MODE="rest"/' "$CONFIG_FILE"
+        else
+            # 如果配置文件不存在，创建它
+            echo 'MODE="rest"' >> "$CONFIG_FILE"
+        fi
         echo -e "\033[1;35m已切换到休息模式\033[0m \033[0;37m- 放松一下，聊聊天吧~\033[0m"
+        exit 0
+    fi
+    
+    # 预设指令: -fix 修复编码（Linux 不需要，主要用于保持接口一致性）
+    if [ "$first_arg" = "-fix" ] || [ "$first_arg" = "fix" ] || [ "$first_arg" = "-fix-encoding" ]; then
+        echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo -e "\033[1;36m            编码检测与修复              \033[0m"
+        echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo ""
+        
+        # 检测当前编码
+        local current_lang="$LANG"
+        local locale_encoding=$(locale charmap 2>/dev/null || echo "unknown")
+        
+        echo -e "\033[0;37m当前系统信息:\033[0m"
+        echo -e "  LANG: \033[1;32m$current_lang\033[0m"
+        echo -e "  编码: \033[1;32m$locale_encoding\033[0m"
+        echo ""
+        
+        # 检测 UTF-8 支持
+        if echo "$current_lang" | grep -qi "utf"; then
+            echo -e "\033[1;32m✓ 系统已配置为 UTF-8 编码\033[0m"
+            echo ""
+            echo -e "\033[0;37m如果你看到字符显示异常，请检查:\033[0m"
+            echo -e "  1. 终端模拟器的编码设置"
+            echo -e "  2. 字体是否支持 Unicode"
+            echo -e "  3. locale 配置: \033[0;32mlocale\033[0m"
+        else
+            echo -e "\033[1;33m⚠ 系统可能未正确配置 UTF-8 编码\033[0m"
+            echo ""
+            echo -e "\033[0;37m建议操作:\033[0m"
+            echo -e "  1. 安装 UTF-8 locale:"
+            echo -e "     \033[0;32msudo locale-gen en_US.UTF-8\033[0m"
+            echo -e "  2. 设置系统编码:"
+            echo -e "     \033[0;32mexport LANG=en_US.UTF-8\033[0m"
+            echo -e "  3. 将上述命令添加到 \033[0;32m~/.bashrc\033[0m"
+        fi
+        
+        echo ""
+        echo -e "\033[0;37mcc 当前使用的字符:\033[0m"
+        echo -e "  表情: $EMOJI_HELLO"
+        echo -e "  列表: $BULLET 项目1 $BULLET 项目2"
+        echo -e "  当前: $BULLET_CURRENT 当前项"
+        
         exit 0
     fi
     
@@ -742,7 +798,7 @@ EOF
         echo -e "\033[0;32mcc hello\033[0m       \033[0;32mcc list\033[0m        \033[0;32mcc testapi\033[0m"
         echo -e "\033[0;32mcc -w\033[0m          \033[0;32mcc -r\033[0m          \033[0;32mcc -config\033[0m"
         echo -e "\033[0;32mcc -change\033[0m     \033[0;32mcc -add\033[0m        \033[0;32mcc -del\033[0m"
-        echo -e "\033[0;32mcc -u\033[0m          \033[0;32mcc -h\033[0m"
+        echo -e "\033[0;32mcc -fix\033[0m        \033[0;32mcc -u\033[0m          \033[0;32mcc -h\033[0m"
         exit 0
     fi
 
