@@ -14,6 +14,54 @@ error_exit() {
     exit 1
 }
 
+# 加载动画函数
+spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='|/-\'
+    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
+# 带加载动画的执行函数
+run_with_spinner() {
+    local msg="$1"
+    shift
+    echo -ne "${YELLOW}${msg}${NC}"
+    ("$@" > /tmp/spinner.log 2>&1) &
+    local pid=$!
+    spinner $pid
+    wait $pid
+    local result=$?
+    if [ $result -eq 0 ]; then
+        echo -e "\r${GREEN}✓${NC} ${msg}"
+    else
+        echo -e "\r${RED}✗${NC} ${msg}"
+        cat /tmp/spinner.log 2>/dev/null
+        return $result
+    fi
+}
+
+# 简单的等待动画
+show_progress() {
+    local msg="$1"
+    local duration=${2:-2}
+    local dots=""
+    echo -ne "${YELLOW}${msg}${NC}"
+    for i in {1..3}; do
+        sleep $(echo "scale=2; $duration/3" | bc 2>/dev/null || echo "0.6")
+        dots="${dots}."
+        echo -ne "\r${YELLOW}${msg}${dots}${NC}"
+    done
+    echo -e "\r${GREEN}✓${NC} ${msg}完成"
+}
+
 # 颜色定义
 RED='\033[1;31m'
 GREEN='\033[1;32m'
@@ -64,51 +112,53 @@ else
 fi
 
 # 启动 Ollama 服务（如果未运行）
-echo -e "${YELLOW}检查 Ollama 服务状态...${NC}"
+show_progress "检查 Ollama 服务状态" 1
 if ! pgrep -x ollama > /dev/null 2>&1; then
-    echo -e "${YELLOW}启动 Ollama 服务...${NC}"
+    echo -e "  ${YELLOW}启动 Ollama 服务...${NC}"
     nohup ollama serve > /tmp/ollama.log 2>&1 &
-    sleep 3
+    show_progress "等待服务启动" 3
     # 再次检查是否启动成功
     if ! pgrep -x ollama > /dev/null 2>&1; then
-        echo -e "${YELLOW}等待 Ollama 服务启动...${NC}"
-        sleep 2
+        show_progress "等待服务就绪" 2
     fi
 fi
 
 # 检查 Ollama 是否可访问（最多重试 5 次）
-echo -e "${YELLOW}检查 Ollama 连接...${NC}"
 OLLAMA_OK=0
 for i in {1..5}; do
     if curl -s --max-time 2 "$OLLAMA_URL/api/tags" > /dev/null 2>&1; then
-        echo -e "${GREEN}✓ Ollama 服务运行正常${NC}"
+        show_progress "验证 Ollama 连接" 1
+        echo -e "  ${GREEN}✓ Ollama 服务运行正常${NC}"
         OLLAMA_OK=1
         break
     else
         if [ $i -lt 5 ]; then
-            echo -e "${YELLOW}等待 Ollama 服务响应... (${i}/5)${NC}"
-            sleep 2
+            echo -ne "\r${YELLOW}等待 Ollama 服务响应... (${i}/5)${NC}"
+            sleep 1
         fi
     fi
 done
 
 if [ $OLLAMA_OK -eq 0 ]; then
-    echo -e "${YELLOW}⚠ Ollama 服务未响应，但继续安装...${NC}"
-    echo -e "${YELLOW}  安装完成后请手动启动: ollama serve &${NC}"
+    echo -e "\r${YELLOW}⚠ Ollama 服务未响应，但继续安装...${NC}"
+    echo -e "  ${YELLOW}安装完成后请手动启动: ollama serve &${NC}"
 fi
 echo ""
 
 # 2. 拉取模型
 echo -e "${YELLOW}[2/4] 检查并拉取模型 ${OLLAMA_MODEL}...${NC}"
-if ollama list | grep -q "$OLLAMA_MODEL"; then
-    echo -e "${GREEN}✓ 模型 ${OLLAMA_MODEL} 已存在${NC}"
+if ollama list 2>/dev/null | grep -q "$OLLAMA_MODEL"; then
+    show_progress "检查模型" 1
+    echo -e "  ${GREEN}✓ 模型 ${OLLAMA_MODEL} 已存在${NC}"
 else
-    echo -e "${YELLOW}正在拉取模型 ${OLLAMA_MODEL}（这可能需要一些时间）...${NC}"
-    ollama pull "$OLLAMA_MODEL"
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ 模型拉取成功${NC}"
+    echo -e "${YELLOW}正在拉取模型 ${OLLAMA_MODEL}...${NC}"
+    echo -e "  ${YELLOW}（这可能需要一些时间，请耐心等待）${NC}"
+    if ollama pull "$OLLAMA_MODEL" 2>&1 | while IFS= read -r line; do
+        echo -ne "\r${YELLOW}  ${line:0:60}${NC}"
+    done; then
+        echo -e "\r${GREEN}  ✓ 模型拉取成功${NC}"
     else
-        echo -e "${RED}✗ 模型拉取失败${NC}"
+        echo -e "\r${RED}  ✗ 模型拉取失败${NC}"
         exit 1
     fi
 fi
@@ -119,33 +169,40 @@ echo -e "${YELLOW}[3/4] 检查并安装依赖（jq, curl）...${NC}"
 
 # 检查并安装 jq
 if command -v jq &> /dev/null; then
-    echo -e "${GREEN}✓ jq 已安装${NC}"
+    show_progress "检查 jq" 0.5
+    echo -e "  ${GREEN}✓ jq 已安装${NC}"
 else
     echo -e "${YELLOW}正在安装 jq...${NC}"
     if command -v apt-get &> /dev/null; then
-        sudo apt-get update -qq 2>/dev/null || sudo apt-get update
-        sudo apt-get install -y jq || error_exit "jq 安装失败，请手动安装: sudo apt-get install -y jq"
+        show_progress "更新软件包列表" 1
+        sudo apt-get update -qq 2>/dev/null || sudo apt-get update > /dev/null 2>&1
+        show_progress "安装 jq" 2
+        sudo apt-get install -y jq > /dev/null 2>&1 || error_exit "jq 安装失败，请手动安装: sudo apt-get install -y jq"
     elif command -v yum &> /dev/null; then
-        sudo yum install -y jq || error_exit "jq 安装失败，请手动安装: sudo yum install -y jq"
+        show_progress "安装 jq" 2
+        sudo yum install -y jq > /dev/null 2>&1 || error_exit "jq 安装失败，请手动安装: sudo yum install -y jq"
     elif command -v dnf &> /dev/null; then
-        sudo dnf install -y jq || error_exit "jq 安装失败，请手动安装: sudo dnf install -y jq"
+        show_progress "安装 jq" 2
+        sudo dnf install -y jq > /dev/null 2>&1 || error_exit "jq 安装失败，请手动安装: sudo dnf install -y jq"
     else
         error_exit "无法自动安装 jq，请手动安装"
     fi
-    echo -e "${GREEN}✓ jq 安装成功${NC}"
+    echo -e "  ${GREEN}✓ jq 安装成功${NC}"
 fi
 
 # 检查 curl
+show_progress "检查 curl" 0.5
 if command -v curl &> /dev/null; then
-    echo -e "${GREEN}✓ curl 已安装${NC}"
+    echo -e "  ${GREEN}✓ curl 已安装${NC}"
 else
-    echo -e "${RED}✗ curl 未安装，请先安装 curl${NC}"
+    echo -e "  ${RED}✗ curl 未安装，请先安装 curl${NC}"
     exit 1
 fi
 echo ""
 
 # 4. 创建 cc.sh 脚本
 echo -e "${YELLOW}[4/4] 创建 cc.sh 脚本...${NC}"
+show_progress "生成脚本文件" 1
 
 cat > "$CC_SCRIPT_PATH" << 'CC_SCRIPT_EOF'
 #!/bin/bash
@@ -281,11 +338,12 @@ main "$@"
 CC_SCRIPT_EOF
 
 chmod +x "$CC_SCRIPT_PATH"
-echo -e "${GREEN}✓ cc.sh 脚本创建成功${NC}"
+echo -e "  ${GREEN}✓ cc.sh 脚本创建成功${NC}"
 echo ""
 
 # 5. 创建 ~/bin 目录并设置 PATH
 echo -e "${YELLOW}配置 PATH 和别名...${NC}"
+show_progress "创建目录结构" 0.5
 mkdir -p "$BIN_DIR"
 
 # 创建 ~/bin/cc 链接
@@ -294,15 +352,17 @@ cat > "$BIN_DIR/cc" << 'BIN_CC_EOF'
 exec bash ~/cc.sh "$@"
 BIN_CC_EOF
 chmod +x "$BIN_DIR/cc"
-echo -e "${GREEN}✓ 创建 $BIN_DIR/cc${NC}"
+show_progress "配置命令链接" 0.5
+echo -e "  ${GREEN}✓ 创建 $BIN_DIR/cc${NC}"
 
 # 更新 .bashrc
 BASHRC="$HOME/.bashrc"
+show_progress "更新配置文件" 0.5
 if ! grep -q "export PATH=\"\$HOME/bin:\$PATH\"" "$BASHRC" 2>/dev/null; then
     echo "" >> "$BASHRC"
     echo "# cc 命令助手配置" >> "$BASHRC"
     echo 'export PATH="$HOME/bin:$PATH"' >> "$BASHRC"
-    echo -e "${GREEN}✓ 已添加 ~/bin 到 PATH${NC}"
+    echo -e "  ${GREEN}✓ 已添加 ~/bin 到 PATH${NC}"
 fi
 
 # 更新别名（如果存在旧的，先删除）
@@ -310,7 +370,7 @@ if grep -q "alias cc=" "$BASHRC" 2>/dev/null; then
     sed -i '/alias cc=/d' "$BASHRC"
 fi
 echo 'alias cc="bash ~/cc.sh"' >> "$BASHRC"
-echo -e "${GREEN}✓ 已设置 cc 别名${NC}"
+echo -e "  ${GREEN}✓ 已设置 cc 别名${NC}"
 echo ""
 
 # 完成
