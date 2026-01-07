@@ -17,7 +17,7 @@
 ## 🚀 一键安装
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/cc-helper/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.sh | bash
 ```
 
 安装完成后：
@@ -74,7 +74,7 @@ cc 查看我的代理设置
 5. ✅ 配置 PATH 和别名
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/cc-helper/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.sh | bash
 source ~/.bashrc
 ```
 
@@ -98,7 +98,7 @@ sudo apt-get install -y jq  # Debian/Ubuntu
 sudo yum install -y jq      # RHEL/CentOS
 
 # 5. 下载并运行安装脚本
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/cc-helper/main/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.sh -o install.sh
 bash install.sh
 ```
 
