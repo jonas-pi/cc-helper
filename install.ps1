@@ -82,6 +82,19 @@ if ($installChoice -eq "2") {
         
         [System.IO.File]::WriteAllText($CC_SCRIPT_PATH, $content, $saveEncoding)
         Write-Green "  ✓ cc.ps1 脚本下载成功"
+        
+        # 创建配置文件（云端模式不设置默认模型）
+        $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
+        $configContent = @"
+# cc 命令助手配置文件
+# 此文件由安装脚本自动生成
+# 请使用 cc -config 配置 API 和模型
+
+`$API_TYPE = ""
+`$MODE = "work"
+"@
+        [System.IO.File]::WriteAllText($CONFIG_FILE, $configContent, $saveEncoding)
+        Write-Green "  ✓ 配置文件已创建"
     } catch {
         Write-Red "✗ cc.ps1 脚本下载失败: $($_.Exception.Message)"
         exit 1
@@ -303,12 +316,13 @@ Write-Output ""
 
 # 拉取选中的模型
 foreach ($model in $selectedModels) {
-    $existingModels = ollama list 2>$null
+    $existingModels = ollama list 2>&1 | Out-Null
+    $existingModels = ollama list
     if ($existingModels -match [regex]::Escape($model)) {
         Write-Green "✓ ${model} 已存在"
     } else {
         Write-Yellow "正在拉取模型 ${model}..."
-        ollama pull $model
+        ollama pull $model 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Green "✓ ${model} 拉取完成"
         } else {
@@ -317,6 +331,26 @@ foreach ($model in $selectedModels) {
     }
 }
 Write-Output ""
+
+# 检查实际已安装的模型，使用第一个作为默认模型
+$installedModels = ollama list 2>&1 | Out-Null
+$installedModels = ollama list
+if ($installedModels) {
+    $availableModels = $installedModels | Select-Object -Skip 1 | ForEach-Object {
+        ($_ -split '\s+')[0]
+    } | Where-Object { $_ -ne "" }
+    
+    if ($availableModels.Count -gt 0) {
+        # 优先使用用户选择的默认模型，如果不存在则使用第一个已安装的模型
+        if ($availableModels -contains $OLLAMA_MODEL) {
+            # 用户选择的模型已安装，使用它
+        } else {
+            # 使用第一个已安装的模型
+            $OLLAMA_MODEL = $availableModels[0]
+            Write-Yellow "注意: 使用已安装的模型: $OLLAMA_MODEL"
+        }
+    }
+}
 
 # 3. 检查依赖（curl 在 Windows 10+ 中已内置）
 Write-Yellow "[3/4] 检查依赖..."
@@ -354,7 +388,9 @@ try {
     
     # 创建或更新配置文件，确保使用正确的模型
     $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
-    $configContent = @"
+    if ($OLLAMA_MODEL) {
+        # 本地模式：设置已安装的模型
+        $configContent = @"
 # cc 命令助手配置文件
 # 此文件由安装脚本自动生成
 
@@ -363,9 +399,21 @@ try {
 `$OLLAMA_URL = "http://127.0.0.1:11434/v1"
 `$MODE = "work"
 "@
-    
-    [System.IO.File]::WriteAllText($CONFIG_FILE, $configContent, $saveEncoding)
-    Write-Green "✓ 配置文件已更新为使用模型: $OLLAMA_MODEL"
+        [System.IO.File]::WriteAllText($CONFIG_FILE, $configContent, $saveEncoding)
+        Write-Green "✓ 配置文件已更新为使用模型: $OLLAMA_MODEL"
+    } else {
+        # 云端模式：不设置默认模型，让用户通过 -config 配置
+        $configContent = @"
+# cc 命令助手配置文件
+# 此文件由安装脚本自动生成
+# 请使用 cc -config 配置 API 和模型
+
+`$API_TYPE = ""
+`$MODE = "work"
+"@
+        [System.IO.File]::WriteAllText($CONFIG_FILE, $configContent, $saveEncoding)
+        Write-Green "✓ 配置文件已创建，请使用 cc -config 配置 API"
+    }
 } catch {
     Write-Red "✗ cc.ps1 脚本下载失败: $($_.Exception.Message)"
     Write-Yellow "尝试使用本地模板..."

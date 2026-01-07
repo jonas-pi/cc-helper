@@ -273,20 +273,10 @@ $query
                 $content = [string]$content
             }
             
-            # 在 GBK 环境下，确保 Unicode 字符串正确转换为 GBK
-            $consoleEncoding = [Console]::OutputEncoding
-            if ($consoleEncoding.CodePage -eq 936) {
-                # GBK 环境：将 Unicode 字符串转换为 GBK 编码
-                try {
-                    $unicode = [System.Text.Encoding]::Unicode
-                    $gbk = [System.Text.Encoding]::GetEncoding(936)
-                    $unicodeBytes = $unicode.GetBytes($content)
-                    $gbkBytes = [System.Text.Encoding]::Convert($unicode, $gbk, $unicodeBytes)
-                    $content = $gbk.GetString($gbkBytes)
-                } catch {
-                    # 转换失败，使用原内容
-                }
-            }
+            # 确保内容正确编码
+            # PowerShell 字符串是 Unicode (UTF-16)，API 返回的也是 Unicode
+            # 在 GBK 环境下，直接使用字符串即可，PowerShell 会自动处理
+            # 如果出现乱码，建议切换到 UTF-8 编码
             
             # 清理并返回
             $content = $content.Trim()
@@ -421,12 +411,17 @@ if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-tes
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
     Write-Host ""
     
+    # testapi 需要检查模型
+    if (-not (Check-And-Select-Model)) {
+        exit 1
+    }
+    
     Write-Host "当前配置:" -ForegroundColor Gray
-    Write-Host "  API 类型: " -NoNewline; Write-Host "$API_TYPE" -ForegroundColor Cyan
-    Write-Host "  API 地址: " -NoNewline; Write-Host "$OLLAMA_URL" -ForegroundColor Gray
-    Write-Host "  模型名称: " -NoNewline; Write-Host "$MODEL" -ForegroundColor Green
-    if ($API_KEY) {
-        Write-Host "  API Key:  " -NoNewline; Write-Host "$($API_KEY.Substring(0, [Math]::Min(10, $API_KEY.Length)))..." -ForegroundColor Gray
+    Write-Host "  API 类型: " -NoNewline; Write-Host "$script:API_TYPE" -ForegroundColor Cyan
+    Write-Host "  API 地址: " -NoNewline; Write-Host "$script:OLLAMA_URL" -ForegroundColor Gray
+    Write-Host "  模型名称: " -NoNewline; Write-Host "$script:MODEL" -ForegroundColor Green
+    if ($script:API_KEY) {
+        Write-Host "  API Key:  " -NoNewline; Write-Host "$($script:API_KEY.Substring(0, [Math]::Min(10, $script:API_KEY.Length)))..." -ForegroundColor Gray
     } else {
         Write-Host "  API Key:  " -NoNewline; Write-Host "(未设置)" -ForegroundColor Yellow
     }
@@ -438,7 +433,7 @@ if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-tes
     try {
         # 构建测试请求
         $testBody = @{
-            model = $MODEL
+            model = $script:MODEL
             messages = @(
                 @{
                     role = "user"
@@ -512,20 +507,20 @@ if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-tes
         } elseif ($statusCode -eq 404) {
             Write-Host "  1. API 地址错误或模型不存在" -ForegroundColor Red
             Write-Host "     - 检查 API_URL 配置"
-            Write-Host "     - 检查模型名称: " -NoNewline; Write-Host "$MODEL" -ForegroundColor Green
+            Write-Host "     - 检查模型名称: " -NoNewline; Write-Host "$script:MODEL" -ForegroundColor Green
             Write-Host "     - 使用 " -NoNewline; Write-Host "cc -config" -NoNewline -ForegroundColor Green; Write-Host " 重新配置"
         } elseif ($statusCode -eq 429) {
             Write-Host "  1. 请求过于频繁（限流）" -ForegroundColor Red
             Write-Host "     - 稍后再试"
         } elseif ($statusCode -eq 400) {
             Write-Host "  1. 请求参数错误" -ForegroundColor Red
-            Write-Host "     - 模型名称可能不正确: " -NoNewline; Write-Host "$MODEL" -ForegroundColor Green
+            Write-Host "     - 模型名称可能不正确: " -NoNewline; Write-Host "$script:MODEL" -ForegroundColor Green
             Write-Host "     - 检查模型是否支持"
         } elseif (-not $statusCode -or $statusCode -eq 0) {
             Write-Host "  1. 网络连接失败" -ForegroundColor Red
             Write-Host "     - 检查网络连接"
-            Write-Host "     - 检查 API 地址是否正确: " -NoNewline; Write-Host "$OLLAMA_URL" -ForegroundColor Gray
-            if ($API_TYPE -eq "ollama") {
+            Write-Host "     - 检查 API 地址是否正确: " -NoNewline; Write-Host "$script:OLLAMA_URL" -ForegroundColor Gray
+            if ($script:API_TYPE -eq "ollama") {
                 Write-Host "     - 确认 Ollama 服务正在运行"
             }
         } else {
@@ -656,130 +651,156 @@ if ($firstArg -eq "-stream" -or $firstArg -eq "stream") {
     exit 0
 }
 
-# 预设指令: -fix 修复编码
+# 预设指令: -fix 全面检测与修复
 if ($firstArg -eq "-fix" -or $firstArg -eq "fix" -or $firstArg -eq "-fix-encoding") {
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-    Write-Host "            编码检测与修复              " -ForegroundColor Cyan
+    Write-Host "           全面检测与修复              " -ForegroundColor Cyan
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
     Write-Host ""
     
-    # 检测当前编码
+    $issues = @()
+    $fixes = @()
+    
+    # 1. 检测编码
     $currentEncoding = [Console]::OutputEncoding
     $currentCodePage = $currentEncoding.CodePage
-    $encodingName = $currentEncoding.EncodingName
+    $isGBK = ($currentCodePage -eq 936)
     
-    Write-Host "当前系统信息:" -ForegroundColor Gray
-    Write-Host "  控制台编码: " -NoNewline
-    Write-Host "$encodingName" -ForegroundColor Green
-    Write-Host "  CodePage: " -NoNewline
-    Write-Host "$currentCodePage" -ForegroundColor Green
-    Write-Host "  是否 GBK: " -NoNewline
-    if ($currentCodePage -eq 936) {
-        Write-Host "是 (简体中文)" -ForegroundColor Yellow
+    Write-Host "[1/3] 编码检测" -ForegroundColor Yellow
+    Write-Host "  编码: " -NoNewline
+    if ($isGBK) {
+        Write-Host "GBK (936)" -ForegroundColor Yellow -NoNewline
+        Write-Host " - 字符显示: ^_^ - 项目" -ForegroundColor Gray
     } else {
-        Write-Host "否 (UTF-8)" -ForegroundColor Green
+        Write-Host "UTF-8 (65001)" -ForegroundColor Green -NoNewline
+        Write-Host " - 字符显示: (｡･ω･｡) • 项目" -ForegroundColor Gray
     }
     Write-Host ""
     
-    # 测试字符显示
-    Write-Host "字符显示测试:" -ForegroundColor Gray
-    if ($currentCodePage -eq 936) {
-        Write-Host "  表情: ^_^" -ForegroundColor Green
-        Write-Host "  列表: - 项目1 - 项目2" -ForegroundColor Green
-        Write-Host "  当前: * 当前项" -ForegroundColor Green
-    } else {
-        Write-Host "  表情: (｡･ω･｡)" -ForegroundColor Green
-        Write-Host "  列表: • 项目1 • 项目2" -ForegroundColor Green
-        Write-Host "  当前: • 当前项" -ForegroundColor Green
-    }
-    Write-Host ""
-    
-    # 提供修复选项
-    Write-Host "如果你看到乱码，可以尝试以下操作:" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "1. 切换到 UTF-8 编码:" -ForegroundColor Cyan
-    Write-Host "   [Console]::OutputEncoding = [System.Text.Encoding]::UTF8" -ForegroundColor Gray
-    Write-Host "   chcp 65001" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "2. 切换到 GBK 编码 (简体中文):" -ForegroundColor Cyan
-    Write-Host "   [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(936)" -ForegroundColor Gray
-    Write-Host "   chcp 936" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "3. 重新安装 cc (自动检测编码):" -ForegroundColor Cyan
-    Write-Host "   irm https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.ps1 | iex" -ForegroundColor Gray
-    Write-Host ""
-    
-    Write-Host "是否要现在切换编码? [1=UTF-8, 2=GBK, n=取消]: " -NoNewline -ForegroundColor Yellow
-    $choice = Read-Host
-    
-    switch ($choice) {
-        "1" {
-            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-            Write-Host ""
-            Write-Host "✓ 已切换到 UTF-8 编码" -ForegroundColor Green
-            Write-Host "测试: (｡･ω･｡) • 项目" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "注意: 这个设置仅在当前会话有效" -ForegroundColor Yellow
-            Write-Host "要永久生效，请在 PowerShell 配置文件中添加:" -ForegroundColor Gray
-            Write-Host '  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8' -ForegroundColor Gray
-        }
-        "2" {
-            [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(936)
-            Write-Host ""
-            Write-Host "✓ 已切换到 GBK 编码" -ForegroundColor Green
-            Write-Host "测试: ^_^ - 项目" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "注意: 这个设置仅在当前会话有效" -ForegroundColor Yellow
-            Write-Host "要永久生效，请在 PowerShell 配置文件中添加:" -ForegroundColor Gray
-            Write-Host '  [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(936)' -ForegroundColor Gray
-        }
-        default {
-            Write-Host "已取消" -ForegroundColor Gray
-        }
-    }
-    
-    Write-Host ""
-    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Yellow
-    Write-Host "是否要强制更新 cc 到最新版本?" -ForegroundColor Gray
-    Write-Host "(编码修复后建议更新以确保所有功能正常)" -ForegroundColor DarkGray
-    Write-Host ""
-    Write-Host "[y/n] (默认: n): " -NoNewline -ForegroundColor Yellow
-    $updateChoice = Read-Host
-    
-    if ($updateChoice -eq "y" -or $updateChoice -eq "Y") {
-        Write-Host ""
-        Write-Host "正在强制更新..." -ForegroundColor Cyan
-        
-        try {
-            # 下载最新版本
-            $updateUrl = "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.ps1?t=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
-            $outputPath = "$env:USERPROFILE\cc.ps1"
+    # 2. 检测模型（仅 Ollama）
+    Write-Host "[2/3] 模型检测" -ForegroundColor Yellow
+    if ($script:API_TYPE -eq "ollama") {
+        $modelList = ollama list 2>&1 | Out-Null
+        $modelList = ollama list
+        if ($modelList) {
+            $availableModels = $modelList | Select-Object -Skip 1 | ForEach-Object {
+                ($_ -split '\s+')[0]
+            } | Where-Object { $_ -ne "" }
             
-            # 备份当前版本
-            if (Test-Path $outputPath) {
-                Copy-Item $outputPath "$outputPath.backup" -Force | Out-Null
+            if ($availableModels.Count -gt 0) {
+                if ($availableModels -contains $script:MODEL) {
+                    Write-Host "  ✓ 模型: " -NoNewline; Write-Host "$script:MODEL" -ForegroundColor Green
+                } else {
+                    Write-Host "  ✗ 模型: " -NoNewline; Write-Host "$script:MODEL" -ForegroundColor Red -NoNewline
+                    Write-Host " (不存在)" -ForegroundColor Gray
+                    $issues += "模型 $script:MODEL 不存在"
+                    # 自动选择可用模型
+                    if ($availableModels.Count -gt 0) {
+                        $script:MODEL = $availableModels[0]
+                        $fixes += "已切换到模型: $script:MODEL"
+                        Write-Host "  → 已切换到: " -NoNewline; Write-Host "$script:MODEL" -ForegroundColor Green
+                    }
+                }
+            } else {
+                Write-Host "  ✗ 未找到已安装的模型" -ForegroundColor Red
+                $issues += "未安装任何模型"
             }
-            
-            # 下载内容并始终使用 UTF-8 with BOM 保存
-            $webClient = New-Object System.Net.WebClient
-            $webClient.Encoding = [System.Text.Encoding]::UTF8
-            $content = $webClient.DownloadString($updateUrl)
-            $saveEncoding = New-Object System.Text.UTF8Encoding $true
-            [System.IO.File]::WriteAllText($outputPath, $content, $saveEncoding)
-            
-            Write-Host ""
-            Write-Host "✓ 更新完成！" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "现在运行: " -NoNewline -ForegroundColor Gray
-            Write-Host "cc hello" -ForegroundColor Green
-        } catch {
-            Write-Host ""
-            Write-Host "✗ 更新失败" -ForegroundColor Red
-            Write-Host "请手动运行: " -NoNewline -ForegroundColor Gray
-            Write-Host "cc -u" -ForegroundColor Green
+        } else {
+            Write-Host "  ✗ Ollama 服务未运行" -ForegroundColor Red
+            $issues += "Ollama 服务未运行"
         }
     } else {
-        Write-Host "已跳过更新" -ForegroundColor Gray
+        Write-Host "  API 类型: " -NoNewline; Write-Host "$script:API_TYPE" -ForegroundColor Cyan -NoNewline
+        if ($script:MODEL) {
+            Write-Host " - 模型: $script:MODEL" -ForegroundColor Green
+        } else {
+            Write-Host " - 模型: (未设置)" -ForegroundColor Yellow
+            $issues += "未配置模型"
+        }
+    }
+    Write-Host ""
+    
+    # 3. 检测 API 连接
+    Write-Host "[3/3] API 连接检测" -ForegroundColor Yellow
+    if ($script:API_TYPE -eq "ollama") {
+        try {
+            $testResponse = Invoke-WebRequest -Uri "$script:OLLAMA_URL/api/tags" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+            Write-Host "  ✓ Ollama 服务正常" -ForegroundColor Green
+        } catch {
+            Write-Host "  ✗ Ollama 服务未响应" -ForegroundColor Red
+            $issues += "Ollama 服务未响应"
+        }
+    } elseif ($script:API_TYPE) {
+        if ($script:MODEL) {
+            Write-Host "  → 运行 " -NoNewline; Write-Host "cc testapi" -ForegroundColor Cyan -NoNewline
+            Write-Host " 测试连接" -ForegroundColor Gray
+        } else {
+            Write-Host "  → 运行 " -NoNewline; Write-Host "cc -config" -ForegroundColor Cyan -NoNewline
+            Write-Host " 配置 API" -ForegroundColor Gray
+        }
+    } else {
+        Write-Host "  → 运行 " -NoNewline; Write-Host "cc -config" -ForegroundColor Cyan -NoNewline
+        Write-Host " 配置 API" -ForegroundColor Gray
+        $issues += "未配置 API"
+    }
+    Write-Host ""
+    
+    # 显示问题和修复
+    if ($issues.Count -gt 0) {
+        Write-Host "发现问题:" -ForegroundColor Yellow
+        foreach ($issue in $issues) {
+            Write-Host "  • $issue" -ForegroundColor Red
+        }
+        Write-Host ""
+    }
+    
+    if ($fixes.Count -gt 0) {
+        Write-Host "已修复:" -ForegroundColor Green
+        foreach ($fix in $fixes) {
+            Write-Host "  ✓ $fix" -ForegroundColor Green
+        }
+        Write-Host ""
+    }
+    
+    # 编码修复选项
+    if ($issues.Count -eq 0 -and $fixes.Count -eq 0) {
+        Write-Host "✓ 一切正常" -ForegroundColor Green
+        Write-Host ""
+    } else {
+        Write-Host "修复选项:" -ForegroundColor Cyan
+        Write-Host "  1. 切换编码 (UTF-8/GBK)" -ForegroundColor Gray
+        Write-Host "  2. 测试 API 连接" -ForegroundColor Gray
+        Write-Host "  3. 配置 API" -ForegroundColor Gray
+        Write-Host "  n. 取消" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "请选择 [1/2/3/n]: " -NoNewline -ForegroundColor Yellow
+        $choice = Read-Host
+        
+        switch ($choice) {
+            "1" {
+                Write-Host ""
+                Write-Host "切换到:" -ForegroundColor Cyan
+                Write-Host "  1. UTF-8" -ForegroundColor Gray
+                Write-Host "  2. GBK" -ForegroundColor Gray
+                Write-Host "  请选择 [1/2]: " -NoNewline -ForegroundColor Yellow
+                $encChoice = Read-Host
+                if ($encChoice -eq "1") {
+                    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+                    Write-Host "✓ 已切换到 UTF-8" -ForegroundColor Green
+                } elseif ($encChoice -eq "2") {
+                    [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(936)
+                    Write-Host "✓ 已切换到 GBK" -ForegroundColor Green
+                }
+            }
+            "2" {
+                Write-Host ""
+                & "$env:USERPROFILE\cc.ps1" testapi
+            }
+            "3" {
+                Write-Host ""
+                & "$env:USERPROFILE\cc.ps1" -config
+            }
+        }
     }
     
     exit 0
@@ -1519,7 +1540,21 @@ if ([string]::IsNullOrWhiteSpace($cmd)) {
     exit 1
 }
 
-Write-Host "> $cmd" -ForegroundColor Gray
+# 输出命令
+# 在 GBK 环境下，使用 UTF-8 编码输出以避免乱码
+$consoleEncoding = [Console]::OutputEncoding
+if ($consoleEncoding.CodePage -eq 936) {
+    # GBK 环境：临时切换到 UTF-8 输出命令
+    $originalEncoding = [Console]::OutputEncoding
+    try {
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        Write-Host "> $cmd" -ForegroundColor Gray
+    } finally {
+        [Console]::OutputEncoding = $originalEncoding
+    }
+} else {
+    Write-Host "> $cmd" -ForegroundColor Gray
+}
 
 $confirm = Read-Host "[y/n]"
 if ([string]::IsNullOrWhiteSpace($confirm) -or $confirm -eq "y" -or $confirm -eq "yes") {
