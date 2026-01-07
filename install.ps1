@@ -397,25 +397,68 @@ if (Test-Path $profilePath) {
 }
 Write-Output ""
 
+# 创建 cc.bat 批处理文件（用于 CMD）
+Write-Yellow "创建 CMD 批处理文件..."
+$ccBatContent = @'
+@echo off
+REM cc 命令助手 - CMD 批处理包装器
+REM 自动检测编码并调用 PowerShell 脚本
+
+chcp 65001 >nul 2>&1
+setlocal enabledelayedexpansion
+
+if "%~1"=="" (
+    echo 用法: cc ^<中文需求^>
+    echo 示例: cc 查看当前目录
+    exit /b 1
+)
+
+REM 收集所有参数
+set "args=%*"
+
+REM 调用 PowerShell 脚本，使用 UTF-8 编码
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '%USERPROFILE%\cc.ps1' %args% }"
+
+exit /b %ERRORLEVEL%
+'@
+
+$ccBatPath = "$BIN_DIR\cc.bat"
+[System.IO.File]::WriteAllText($ccBatPath, $ccBatContent, [System.Text.Encoding]::ASCII)
+Write-Green "✓ 已创建 $ccBatPath"
+Write-Output ""
+
 # 完成
-Write-Blue "========================================"
-Write-Green "安装完成！"
-Write-Blue "========================================"
 Write-Output ""
-Write-Yellow "下一步："
-Write-Output "1. 重新打开 PowerShell 或运行以下命令："
-Write-Host "   . `$PROFILE" -ForegroundColor Green
 Write-Output ""
-Write-Output "2. 或者在 CMD 中直接使用："
-Write-Host "   cc 查看当前目录" -ForegroundColor Green
+Write-ColorOutput Cyan "╔════════════════════════════════════════════════════════════════╗"
+Write-ColorOutput Cyan "║                                                                ║"
+Write-ColorOutput Cyan "║                    ✓ 安装完成！                                ║"
+Write-ColorOutput Cyan "║                                                                ║"
+Write-ColorOutput Cyan "╚════════════════════════════════════════════════════════════════╝"
+Write-Output ""
+Write-Output ""
+Write-ColorOutput Yellow "╔════════════════════════════════════════════════════════════════╗"
+Write-ColorOutput Yellow "║                                                                ║"
+Write-ColorOutput Yellow "║              ⚠️  重要提示：请在 CMD 中使用 cc 命令              ║"
+Write-ColorOutput Yellow "║                                                                ║"
+Write-ColorOutput Yellow "║  1. 打开命令提示符（CMD）                                       ║"
+Write-ColorOutput Yellow "║                                                                ║"
+Write-ColorOutput Yellow "║  2. 使用示例：                                                  ║"
+Write-ColorOutput Green   "║     cc 查看当前目录                                            ║"
+Write-ColorOutput Green   "║     cc 列出所有文件                                            ║"
+Write-ColorOutput Green   "║     cc 查看进程                                                ║"
+Write-ColorOutput Yellow "║                                                                ║"
+Write-ColorOutput Yellow "╚════════════════════════════════════════════════════════════════╝"
+Write-Output ""
 Write-Output ""
 Write-Yellow "配置信息："
 Write-Output "  - 模型: $OLLAMA_MODEL"
-Write-Output "  - 脚本: $CC_SCRIPT_PATH"
-Write-Output "  - 命令: $ccBatPath"
+Write-Output "  - PowerShell 脚本: $CC_SCRIPT_PATH"
+Write-Output "  - CMD 批处理: $ccBatPath"
+Write-Output "  - 已添加到 PATH: $BIN_DIR"
 Write-Output ""
-Write-Yellow "注意："
-Write-Output "- 如果遇到执行策略错误，请运行："
-Write-Host "  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser" -ForegroundColor Green
+Write-Yellow "故障排除："
+Write-Output "  - 如果 CMD 中找不到 cc 命令，请重新打开 CMD 窗口"
+Write-Output "  - 如果遇到权限问题，以管理员身份运行 CMD"
 Write-Output ""
 
