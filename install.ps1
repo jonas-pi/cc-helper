@@ -113,20 +113,118 @@ if (-not $OLLAMA_OK) {
 }
 Write-Output ""
 
-# 2. 拉取模型
-Write-Yellow "[2/4] 检查并拉取模型 $OLLAMA_MODEL..."
-$modelList = ollama list 2>$null
-if ($modelList -match $OLLAMA_MODEL) {
-    Write-Green "✓ 模型 $OLLAMA_MODEL 已存在"
-} else {
-    Write-Yellow "正在拉取模型 $OLLAMA_MODEL..."
-    Write-Yellow "（这可能需要一些时间，请耐心等待）"
-    ollama pull $OLLAMA_MODEL
-    if ($LASTEXITCODE -eq 0) {
-        Write-Green "✓ 模型拉取成功"
+# 2. 选择并拉取模型
+Write-Yellow "[2/4] 选择 Ollama 模型..."
+Write-Output ""
+
+# 获取系统信息
+$totalRamGB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)
+$cpuCores = (Get-CimInstance Win32_Processor).NumberOfCores
+Write-Green "系统配置:"
+Write-Output "  RAM: $totalRamGB GB"
+Write-Output "  CPU 核心: $cpuCores"
+Write-Output ""
+
+# 模型列表
+$modelList = @(
+    @{Name="qwen2.5:0.5b"; Size="500MB"; RamNeed=2; Desc="最轻量，极快响应，适合低配置"},
+    @{Name="qwen2.5:1.5b"; Size="1.5GB"; RamNeed=4; Desc="轻量快速，推荐日常使用"},
+    @{Name="qwen2.5:3b"; Size="3GB"; RamNeed=8; Desc="平衡性能，准确度高"},
+    @{Name="qwen2.5:7b"; Size="7GB"; RamNeed=16; Desc="高性能，专业级准确度"},
+    @{Name="phi3.5"; Size="2.2GB"; RamNeed=6; Desc="微软模型，英文优秀，中文良好"},
+    @{Name="llama3.2:1b"; Size="1GB"; RamNeed=3; Desc="Meta轻量模型，快速响应"},
+    @{Name="llama3.2:3b"; Size="2GB"; RamNeed=6; Desc="Meta平衡模型，性能出色"}
+)
+
+# 根据 RAM 给出推荐
+Write-Green "可用模型:"
+$recommended = 0
+for ($i = 0; $i -lt $modelList.Count; $i++) {
+    $model = $modelList[$i]
+    $num = $i + 1
+    
+    # 判断是否推荐
+    if ($totalRamGB -ge $model.RamNeed) {
+        if ($recommended -eq 0) {
+            $recommended = $num
+        }
+        Write-Host "  $num. " -NoNewline
+        Write-Host "$($model.Name)" -ForegroundColor Green -NoNewline
+        Write-Host " - $($model.Size) - $($model.Desc) (需要 $($model.RamNeed)GB RAM)"
     } else {
-        Write-Red "✗ 模型拉取失败"
-        exit 1
+        Write-Host "  $num. $($model.Name) - $($model.Size) - $($model.Desc) (需要 $($model.RamNeed)GB RAM) " -NoNewline
+        Write-Host "[配置不足]" -ForegroundColor Red
+    }
+}
+Write-Output ""
+
+if ($recommended -gt 0) {
+    Write-Green "根据您的系统配置 (${totalRamGB}GB RAM)，推荐: 选项 $recommended"
+} else {
+    Write-Yellow "警告: 系统 RAM 较低，建议选择最轻量的模型"
+    $recommended = 1
+}
+Write-Output ""
+
+Write-Yellow "请选择要安装的模型（输入序号，多个用空格分隔，或直接回车使用推荐）:"
+$selection = Read-Host
+
+# 如果用户直接回车，使用推荐
+if ([string]::IsNullOrWhiteSpace($selection)) {
+    $selection = $recommended.ToString()
+}
+
+# 解析用户选择
+$selectedModels = @()
+$numbers = $selection -split '\s+' | Where-Object { $_ -match '^\d+$' }
+foreach ($num in $numbers) {
+    $index = [int]$num - 1
+    if ($index -ge 0 -and $index -lt $modelList.Count) {
+        $selectedModels += $modelList[$index].Name
+    }
+}
+
+if ($selectedModels.Count -eq 0) {
+    Write-Red "错误: 没有选择有效的模型"
+    exit 1
+}
+
+# 如果选择了多个模型，让用户选择默认使用的
+$defaultModel = $selectedModels[0]
+if ($selectedModels.Count -gt 1) {
+    Write-Output ""
+    Write-Yellow "您选择了多个模型，请选择默认使用的模型:"
+    for ($i = 0; $i -lt $selectedModels.Count; $i++) {
+        Write-Output "  $($i + 1). $($selectedModels[$i])"
+    }
+    $defaultChoice = Read-Host
+    if ($defaultChoice -match '^\d+$') {
+        $defaultIndex = [int]$defaultChoice - 1
+        if ($defaultIndex -ge 0 -and $defaultIndex -lt $selectedModels.Count) {
+            $defaultModel = $selectedModels[$defaultIndex]
+        }
+    }
+}
+
+$OLLAMA_MODEL = $defaultModel
+Write-Output ""
+Write-Green "将安装以下模型: $($selectedModels -join ', ')"
+Write-Green "默认使用: $OLLAMA_MODEL"
+Write-Output ""
+
+# 拉取选中的模型
+foreach ($model in $selectedModels) {
+    $existingModels = ollama list 2>$null
+    if ($existingModels -match [regex]::Escape($model)) {
+        Write-Green "✓ ${model} 已存在"
+    } else {
+        Write-Yellow "正在拉取模型 ${model}..."
+        ollama pull $model
+        if ($LASTEXITCODE -eq 0) {
+            Write-Green "✓ ${model} 拉取完成"
+        } else {
+            Write-Red "✗ ${model} 拉取失败"
+        }
     }
 }
 Write-Output ""

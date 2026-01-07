@@ -100,20 +100,116 @@ if [ $OLLAMA_OK -eq 0 ]; then
 fi
 echo ""
 
-# 2. 拉取模型
-echo -e "${YELLOW}[2/4] 检查并拉取模型 ${OLLAMA_MODEL}...${NC}"
-if ollama list 2>/dev/null | grep -q "$OLLAMA_MODEL"; then
-    echo -e "  ${GREEN}✓ 模型 ${OLLAMA_MODEL} 已存在${NC}"
-else
-    echo -e "${YELLOW}正在拉取模型 ${OLLAMA_MODEL}...${NC}"
-    echo -e "  ${YELLOW}（这可能需要一些时间，请耐心等待）${NC}"
-    if ollama pull "$OLLAMA_MODEL" 2>&1; then
-        echo -e "  ${GREEN}✓ 模型拉取成功${NC}"
+# 2. 选择并拉取模型
+echo -e "${YELLOW}[2/4] 选择 Ollama 模型...${NC}"
+echo ""
+
+# 获取系统信息
+TOTAL_RAM=$(free -m | awk 'NR==2 {print $2}')
+CPU_CORES=$(nproc)
+echo -e "${GREEN}系统配置:${NC}"
+echo -e "  RAM: ${TOTAL_RAM} MB (~$((TOTAL_RAM / 1024)) GB)"
+echo -e "  CPU 核心: ${CPU_CORES}"
+echo ""
+
+# 模型列表（模型名称|大小|RAM需求GB|描述）
+declare -a MODELS=(
+    "qwen2.5:0.5b|500MB|2|最轻量，极快响应，适合低配置"
+    "qwen2.5:1.5b|1.5GB|4|轻量快速，推荐日常使用"
+    "qwen2.5:3b|3GB|8|平衡性能，准确度高"
+    "qwen2.5:7b|7GB|16|高性能，专业级准确度"
+    "phi3.5|2.2GB|6|微软模型，英文优秀，中文良好"
+    "llama3.2:1b|1GB|3|Meta轻量模型，快速响应"
+    "llama3.2:3b|2GB|6|Meta平衡模型，性能出色"
+)
+
+# 根据 RAM 给出推荐
+echo -e "${GREEN}可用模型:${NC}"
+RECOMMENDED=""
+RAM_GB=$((TOTAL_RAM / 1024))
+for i in "${!MODELS[@]}"; do
+    IFS='|' read -r model size ram_need desc <<< "${MODELS[$i]}"
+    
+    # 判断是否推荐
+    if [ "$RAM_GB" -ge "$ram_need" ]; then
+        if [ -z "$RECOMMENDED" ]; then
+            RECOMMENDED=$((i + 1))
+        fi
+        echo -e "  $((i + 1)). ${GREEN}${model}${NC} - ${size} - ${desc} (需要 ${ram_need}GB RAM)"
     else
-        echo -e "  ${RED}✗ 模型拉取失败${NC}"
-        exit 1
+        echo -e "  $((i + 1)). ${model} - ${size} - ${desc} (需要 ${ram_need}GB RAM) ${RED}[配置不足]${NC}"
+    fi
+done
+echo ""
+
+if [ -n "$RECOMMENDED" ]; then
+    echo -e "${GREEN}根据您的系统配置 (${RAM_GB}GB RAM)，推荐: 选项 ${RECOMMENDED}${NC}"
+else
+    echo -e "${YELLOW}警告: 系统 RAM 较低，建议选择最轻量的模型${NC}"
+    RECOMMENDED=1
+fi
+echo ""
+
+echo -e "${YELLOW}请选择要安装的模型（输入序号，多个用空格分隔，或直接回车使用推荐）:${NC}"
+read -r selection
+
+# 如果用户直接回车，使用推荐
+if [ -z "$selection" ]; then
+    selection=$RECOMMENDED
+fi
+
+# 解析用户选择
+SELECTED_MODELS=()
+DEFAULT_MODEL=""
+for num in $selection; do
+    index=$((num - 1))
+    if [ "$index" -ge 0 ] && [ "$index" -lt "${#MODELS[@]}" ]; then
+        IFS='|' read -r model size ram_need desc <<< "${MODELS[$index]}"
+        SELECTED_MODELS+=("$model")
+        if [ -z "$DEFAULT_MODEL" ]; then
+            DEFAULT_MODEL="$model"
+        fi
+    fi
+done
+
+if [ "${#SELECTED_MODELS[@]}" -eq 0 ]; then
+    echo -e "${RED}错误: 没有选择有效的模型${NC}"
+    exit 1
+fi
+
+# 如果选择了多个模型，让用户选择默认使用的
+if [ "${#SELECTED_MODELS[@]}" -gt 1 ]; then
+    echo ""
+    echo -e "${YELLOW}您选择了多个模型，请选择默认使用的模型:${NC}"
+    for i in "${!SELECTED_MODELS[@]}"; do
+        echo -e "  $((i + 1)). ${SELECTED_MODELS[$i]}"
+    done
+    read -r default_choice
+    default_index=$((default_choice - 1))
+    if [ "$default_index" -ge 0 ] && [ "$default_index" -lt "${#SELECTED_MODELS[@]}" ]; then
+        DEFAULT_MODEL="${SELECTED_MODELS[$default_index]}"
     fi
 fi
+
+OLLAMA_MODEL="$DEFAULT_MODEL"
+echo ""
+echo -e "${GREEN}将安装以下模型: ${SELECTED_MODELS[*]}${NC}"
+echo -e "${GREEN}默认使用: ${OLLAMA_MODEL}${NC}"
+echo ""
+
+# 拉取选中的模型
+for model in "${SELECTED_MODELS[@]}"; do
+    if ollama list 2>/dev/null | grep -q "$model"; then
+        echo -e "${GREEN}✓ ${model} 已存在${NC}"
+    else
+        echo -e "${YELLOW}正在拉取模型 ${model}...${NC}"
+        if ollama pull "$model" 2>&1; then
+            echo -e "${GREEN}✓ ${model} 拉取完成${NC}"
+        else
+            echo -e "${RED}✗ ${model} 拉取失败${NC}"
+        fi
+    fi
+done
 echo ""
 
 # 3. 安装依赖
