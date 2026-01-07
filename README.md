@@ -45,10 +45,21 @@ irm https://raw.githubusercontent.com/jonas-pi/cc-helper/main/uninstall.ps1 | ie
 ## 使用
 
 ```bash
+# 测试安装
+cc hello
+
+# 正常使用
 cc 查看当前目录
 cc 哪些端口被占用
 cc 查找所有 .log 文件
 cc 查看系统信息
+```
+
+## 预设命令
+
+```bash
+cc hello    # 显示欢迎信息，测试安装是否正常
+cc -u       # 更新脚本到最新版本
 ```
 
 ## 系统要求
@@ -65,6 +76,30 @@ cc 查看系统信息
 - winget（用于自动安装 Ollama，Windows 11 内置，Windows 10 需要安装）
 - 至少 2GB 可用磁盘空间
 
+## 更新
+
+### 自动更新（推荐）
+
+```bash
+# Linux 和 Windows 都支持
+cc -u
+```
+
+### 手动更新
+
+#### Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.sh | bash
+source ~/.bashrc
+```
+
+#### Windows
+
+```powershell
+irm https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.ps1 | iex
+```
+
 ## 配置
 
 ### Linux
@@ -80,7 +115,7 @@ MODEL="qwen2.5:1.5b"  # 改为你想要的模型
 编辑 `%USERPROFILE%\cc.ps1` 修改模型：
 
 ```powershell
-$MODEL = "qwen2.5:1.5b"  # 改为你想要的模型
+$MODEL = "phi3.5"  # 改为你想要的模型
 ```
 
 然后拉取新模型：
