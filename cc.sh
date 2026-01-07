@@ -5,6 +5,26 @@ OLLAMA_URL="http://127.0.0.1:11434/v1"
 MODEL="qwen2.5:1.5b"
 MODE="work"  # work: 工作模式（只输出命令）, rest: 休息模式（可以聊天）
 
+# 检测终端编码并选择合适的字符
+LANG_ENCODING=$(echo $LANG | grep -i "utf")
+if [ -n "$LANG_ENCODING" ]; then
+    # UTF-8 编码：使用可爱的 Unicode 字符
+    EMOJI_HELLO="(｡･ω･｡)"
+    BULLET="•"
+    BULLET_CURRENT="•"
+    BOX_TOP="╔════════════════════════════════════════════╗"
+    BOX_MID="║         CC 命令助手 - 使用指南          ║"
+    BOX_BOT="╚════════════════════════════════════════════╝"
+else
+    # 其他编码：使用 ASCII 兼容字符
+    EMOJI_HELLO="^_^"
+    BULLET="-"
+    BULLET_CURRENT="*"
+    BOX_TOP="============================================"
+    BOX_MID="         CC 命令助手 - 使用指南          "
+    BOX_BOT="============================================"
+fi
+
 # 检查并自动选择可用模型
 check_and_select_model() {
     # 检查当前配置的模型是否存在
@@ -123,7 +143,7 @@ main() {
     
     # 预设指令: hello（不依赖模型）
     if [ "$first_arg" = "hello" ]; then
-        echo -e "\033[0;37m(｡･ω･｡) cc v1.0\033[0m"
+        echo -e "\033[0;37m$EMOJI_HELLO cc v1.0\033[0m"
         echo ""
         
         # 显示当前模型
@@ -143,9 +163,9 @@ main() {
             echo -e "\033[0;37m已安装的模型:\033[0m"
             while IFS= read -r model; do
                 if [ "$model" = "$MODEL" ]; then
-                    echo -e "  • \033[1;32m$model\033[0m"
+                    echo -e "  $BULLET_CURRENT \033[1;32m$model\033[0m"
                 else
-                    echo -e "  • $model"
+                    echo -e "  $BULLET $model"
                 fi
             done <<< "$models"
         fi
@@ -327,9 +347,9 @@ main() {
     
     # 帮助信息
     if [ $# -lt 1 ] || [ "$first_arg" = "-h" ] || [ "$first_arg" = "--help" ] || [ "$first_arg" = "-help" ] || [ "$first_arg" = "help" ]; then
-        echo -e "\033[1;36m╔════════════════════════════════════════════╗\033[0m"
-        echo -e "\033[1;36m║         CC 命令助手 - 使用指南          ║\033[0m"
-        echo -e "\033[1;36m╚════════════════════════════════════════════╝\033[0m"
+        echo -e "\033[1;36m$BOX_TOP\033[0m"
+        echo -e "\033[1;36m$BOX_MID\033[0m"
+        echo -e "\033[1;36m$BOX_BOT\033[0m"
         echo ""
         echo -e "\033[1;33m基本用法:\033[0m"
         echo -e "  \033[0;37mcc <中文需求>\033[0m"
