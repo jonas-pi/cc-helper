@@ -151,7 +151,7 @@ fi
 echo ""
 
 echo -e "${YELLOW}请选择要安装的模型（输入序号，多个用空格分隔，或直接回车使用推荐）:${NC}"
-read -r selection
+read -r selection < /dev/tty
 
 # 如果用户直接回车，使用推荐
 if [ -z "$selection" ]; then
@@ -184,7 +184,7 @@ if [ "${#SELECTED_MODELS[@]}" -gt 1 ]; then
     for i in "${!SELECTED_MODELS[@]}"; do
         echo -e "  $((i + 1)). ${SELECTED_MODELS[$i]}"
     done
-    read -r default_choice
+    read -r default_choice < /dev/tty
     default_index=$((default_choice - 1))
     if [ "$default_index" -ge 0 ] && [ "$default_index" -lt "${#SELECTED_MODELS[@]}" ]; then
         DEFAULT_MODEL="${SELECTED_MODELS[$default_index]}"

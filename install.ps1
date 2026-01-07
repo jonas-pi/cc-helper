@@ -178,6 +178,7 @@ if ($recommended -gt 0) {
 Write-Output ""
 
 Write-Yellow "请选择要安装的模型（输入序号，多个用空格分隔，或直接回车使用推荐）:"
+Write-Host "" -NoNewline
 $selection = Read-Host
 
 # 如果用户直接回车，使用推荐
@@ -208,6 +209,7 @@ if ($selectedModels.Count -gt 1) {
     for ($i = 0; $i -lt $selectedModels.Count; $i++) {
         Write-Output "  $($i + 1). $($selectedModels[$i])"
     }
+    Write-Host "" -NoNewline
     $defaultChoice = Read-Host
     if ($defaultChoice -match '^\d+$') {
         $defaultIndex = [int]$defaultChoice - 1
