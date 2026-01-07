@@ -127,13 +127,13 @@ Write-Output ""
 
 # 模型列表（按 PowerShell 支持度排序）
 $modelList = @(
-    @{Name="phi3.5"; Size="2.2GB"; RamNeed=6; Desc="微软模型，PowerShell 支持最佳"; PsSupport=10},
-    @{Name="llama3.2:1b"; Size="1GB"; RamNeed=3; Desc="Meta轻量模型，通用性强"; PsSupport=9},
-    @{Name="llama3.2:3b"; Size="2GB"; RamNeed=6; Desc="Meta平衡模型，性能出色"; PsSupport=9},
-    @{Name="qwen2.5:0.5b"; Size="500MB"; RamNeed=2; Desc="最轻量，极快响应，中文优秀"; PsSupport=7},
-    @{Name="qwen2.5:1.5b"; Size="1.5GB"; RamNeed=4; Desc="轻量快速，中文优秀"; PsSupport=7},
-    @{Name="qwen2.5:3b"; Size="3GB"; RamNeed=8; Desc="平衡性能，中文优秀"; PsSupport=7},
-    @{Name="qwen2.5:7b"; Size="7GB"; RamNeed=16; Desc="高性能，中文优秀"; PsSupport=7}
+    @{Name="phi3.5"; Size="2.2GB"; RamNeed=8; Desc="微软3.8B模型，PS命令最佳，代码生成强"; PsSupport=10},
+    @{Name="llama3.2:3b"; Size="2GB"; RamNeed=8; Desc="Meta平衡，多模态支持，PS兼容性佳"; PsSupport=9},
+    @{Name="llama3.2:1b"; Size="1.2GB"; RamNeed=4; Desc="Meta轻量，边缘优化，PS支持良好"; PsSupport=9},
+    @{Name="qwen2.5:1.5b"; Size="1GB"; RamNeed=4; Desc="轻量快速，中文优秀，PS可用"; PsSupport=7},
+    @{Name="qwen2.5:3b"; Size="2GB"; RamNeed=8; Desc="中等性能，中文顶尖，PS可用"; PsSupport=7},
+    @{Name="qwen2.5:0.5b"; Size="400MB"; RamNeed=3; Desc="超轻量，中文不错，低配应急"; PsSupport=6},
+    @{Name="qwen2.5:7b"; Size="4.7GB"; RamNeed=16; Desc="高性能，128K上下文，中文顶尖"; PsSupport=7}
 )
 
 # 根据 RAM 和 PowerShell 支持度给出推荐
