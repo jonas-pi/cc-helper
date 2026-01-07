@@ -25,6 +25,7 @@ CC_SCRIPT_PATH="$HOME/cc.sh"
 BIN_DIR="$HOME/bin"
 
 # 显示铭牌
+echo -e "${BLUE}"
 cat << "EOF"
     ____ ____         _   _                 _            
    / ___/ ___|  ___  | | | | ___  _ __ ___ | |__   ___ _ __ 
@@ -34,7 +35,7 @@ cat << "EOF"
                                                              
          AI 命令助手 - 基于 Ollama 的智能命令生成工具
 EOF
-echo ""
+echo -e "${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  正在安装 cc 命令助手...${NC}"
 echo -e "${BLUE}========================================${NC}"
