@@ -928,67 +928,204 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
 
 # 预设指令: -change 切换模型
 if ($firstArg -eq "-change" -or $firstArg -eq "change") {
-    # 检查是否使用 Ollama
-    if ($API_TYPE -ne "ollama") {
-        Write-Host "当前使用的是 $API_TYPE API" -ForegroundColor Cyan
-        Write-Host "要切换模型或 API，请使用: " -NoNewline -ForegroundColor Gray
-        Write-Host "cc -config" -ForegroundColor Green
-        exit 0
-    }
+    Write-Host "当前配置:" -ForegroundColor Cyan
+    Write-Host "  API 类型: " -NoNewline; Write-Host "$API_TYPE" -ForegroundColor Cyan
+    Write-Host "  当前模型: " -NoNewline; Write-Host "$MODEL" -ForegroundColor Green
+    Write-Host ""
     
-    $modelList = ollama list 2>$null
-    if (-not $modelList) {
-        Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
-        exit 1
-    }
+    if ($API_TYPE -eq "ollama") {
+        # Ollama: 列出本地已下载的模型
+        $modelList = ollama list 2>$null
+        if (-not $modelList) {
+            Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
+            exit 1
+        }
+        
+        $models = $modelList | Select-Object -Skip 1 | ForEach-Object {
+            ($_ -split '\s+')[0]
+        } | Where-Object { $_ -ne "" }
+        
+        if ($models.Count -eq 0) {
+            Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
+            exit 1
+        }
+        
+        Write-Host "已安装的模型:" -ForegroundColor Gray
+        for ($i = 0; $i -lt $models.Count; $i++) {
+            if ($models[$i] -eq $MODEL) {
+                Write-Host "  $($i + 1). " -NoNewline
+                Write-Host "$($models[$i])" -ForegroundColor Green -NoNewline
+                Write-Host " (当前)"
+            } else {
+                Write-Host "  $($i + 1). $($models[$i])"
+            }
+        }
     
-    $models = $modelList | Select-Object -Skip 1 | ForEach-Object {
-        ($_ -split '\s+')[0]
-    } | Where-Object { $_ -ne "" }
-    
-    if ($models.Count -eq 0) {
-        Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
-        exit 1
-    }
-    
-    Write-Host "已安装的模型:" -ForegroundColor Gray
-    for ($i = 0; $i -lt $models.Count; $i++) {
-        if ($models[$i] -eq $MODEL) {
-            Write-Host "  $($i + 1). " -NoNewline
-            Write-Host "$($models[$i])" -ForegroundColor Green -NoNewline
-            Write-Host " (当前)"
-        } else {
-            Write-Host "  $($i + 1). $($models[$i])"
+        Write-Host ""
+        Write-Host "请选择模型 (序号): " -ForegroundColor Yellow -NoNewline
+        $choice = Read-Host
+        
+        $index = [int]$choice - 1
+        if ($index -lt 0 -or $index -ge $models.Count) {
+            Write-Host "无效选择" -ForegroundColor Red
+            exit 1
+        }
+        
+        $selected = $models[$index]
+    } else {
+        # 云端 API: 提供常见模型或手动输入
+        Write-Host "常见模型:" -ForegroundColor Gray
+        switch ($API_TYPE) {
+            "openai" {
+                Write-Host "  1. gpt-3.5-turbo"
+                Write-Host "  2. gpt-4"
+                Write-Host "  3. gpt-4-turbo"
+                Write-Host "  4. gpt-4o"
+                Write-Host "  5. gpt-4o-mini"
+            }
+            "anthropic" {
+                Write-Host "  1. claude-3-haiku-20240307"
+                Write-Host "  2. claude-3-sonnet-20240229"
+                Write-Host "  3. claude-3-opus-20240229"
+                Write-Host "  4. claude-3-5-sonnet-20241022"
+            }
+            "deepseek" {
+                Write-Host "  1. deepseek-chat"
+                Write-Host "  2. deepseek-coder"
+            }
+            "qwen" {
+                Write-Host "  1. qwen-plus"
+                Write-Host "  2. qwen-turbo"
+                Write-Host "  3. qwen-max"
+            }
+            "doubao" {
+                Write-Host "  1. doubao-pro-32k"
+                Write-Host "  2. doubao-lite-32k"
+            }
+            default {
+                Write-Host "  (自定义 API)" -ForegroundColor DarkGray
+            }
+        }
+        Write-Host "  0. 手动输入模型名称"
+        Write-Host ""
+        Write-Host "请选择 (序号) 或直接输入模型名称: " -ForegroundColor Yellow -NoNewline
+        $choice = Read-Host
+        
+        $selected = ""
+        switch ($API_TYPE) {
+            "openai" {
+                switch ($choice) {
+                    "1" { $selected = "gpt-3.5-turbo" }
+                    "2" { $selected = "gpt-4" }
+                    "3" { $selected = "gpt-4-turbo" }
+                    "4" { $selected = "gpt-4o" }
+                    "5" { $selected = "gpt-4o-mini" }
+                    default {
+                        if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
+                            $selected = Read-Host "输入模型名称"
+                        } else {
+                            $selected = $choice
+                        }
+                    }
+                }
+            }
+            "anthropic" {
+                switch ($choice) {
+                    "1" { $selected = "claude-3-haiku-20240307" }
+                    "2" { $selected = "claude-3-sonnet-20240229" }
+                    "3" { $selected = "claude-3-opus-20240229" }
+                    "4" { $selected = "claude-3-5-sonnet-20241022" }
+                    default {
+                        if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
+                            $selected = Read-Host "输入模型名称"
+                        } else {
+                            $selected = $choice
+                        }
+                    }
+                }
+            }
+            "deepseek" {
+                switch ($choice) {
+                    "1" { $selected = "deepseek-chat" }
+                    "2" { $selected = "deepseek-coder" }
+                    default {
+                        if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
+                            $selected = Read-Host "输入模型名称"
+                        } else {
+                            $selected = $choice
+                        }
+                    }
+                }
+            }
+            "qwen" {
+                switch ($choice) {
+                    "1" { $selected = "qwen-plus" }
+                    "2" { $selected = "qwen-turbo" }
+                    "3" { $selected = "qwen-max" }
+                    default {
+                        if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
+                            $selected = Read-Host "输入模型名称"
+                        } else {
+                            $selected = $choice
+                        }
+                    }
+                }
+            }
+            "doubao" {
+                switch ($choice) {
+                    "1" { $selected = "doubao-pro-32k" }
+                    "2" { $selected = "doubao-lite-32k" }
+                    default {
+                        if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
+                            $selected = Read-Host "输入模型名称"
+                        } else {
+                            $selected = $choice
+                        }
+                    }
+                }
+            }
+            default {
+                # 自定义 API，直接输入
+                if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
+                    $selected = Read-Host "输入模型名称"
+                } else {
+                    $selected = $choice
+                }
+            }
+        }
+        
+        if ([string]::IsNullOrWhiteSpace($selected)) {
+            Write-Host "无效输入" -ForegroundColor Red
+            exit 1
         }
     }
     
-    Write-Host ""
-    Write-Host "请选择模型 (序号): " -ForegroundColor Yellow -NoNewline
-    $choice = Read-Host
-    
-    $index = [int]$choice - 1
-    if ($index -lt 0 -or $index -ge $models.Count) {
-        Write-Host "无效选择" -ForegroundColor Red
-        exit 1
-    }
-    
-    $selected = $models[$index]
-    
-    # 更新脚本中的 MODEL 变量
-    $scriptPath = "$env:USERPROFILE\cc.ps1"
-    $content = Get-Content $scriptPath -Raw
-    $content = $content -replace '^\$MODEL = ".*"', "`$MODEL = `"$selected`""
-    
-    # 保存时使用正确的编码
-    $currentEncoding = [Console]::OutputEncoding
-    if ($currentEncoding.CodePage -eq 936) {
-        $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+    # 更新配置文件
+    if (Test-Path $CONFIG_FILE) {
+        $content = Get-Content $CONFIG_FILE -Raw
+        if ($content -match '(?m)^\s*\$MODEL\s*=') {
+            $content = $content -replace '(?m)^\s*\$MODEL\s*=\s*".*"', "`$MODEL = `"$selected`""
+        } else {
+            $content = $content.TrimEnd() + "`n`$MODEL = `"$selected`""
+        }
+        
+        $currentEncoding = [Console]::OutputEncoding
+        if ($currentEncoding.CodePage -eq 936) {
+            $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+        } else {
+            $saveEncoding = New-Object System.Text.UTF8Encoding $true
+        }
+        [System.IO.File]::WriteAllText($CONFIG_FILE, $content, $saveEncoding)
     } else {
-        $saveEncoding = New-Object System.Text.UTF8Encoding $true
+        "`$MODEL = `"$selected`"" | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
     }
-    [System.IO.File]::WriteAllText($scriptPath, $content, $saveEncoding)
     
-    Write-Host "已切换到: $selected" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "✓ 已切换到: $selected" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "提示: 使用 " -NoNewline -ForegroundColor Gray
+    Write-Host "cc testapi" -NoNewline -ForegroundColor Green
+    Write-Host " 测试新模型连接" -ForegroundColor Gray
     exit 0
 }
 

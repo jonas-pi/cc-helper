@@ -662,44 +662,168 @@ main() {
     
     # 预设指令: -change 切换模型
     if [ "$first_arg" = "-change" ] || [ "$first_arg" = "change" ]; then
-        # 检查是否使用 Ollama
-        if [ "$API_TYPE" != "ollama" ]; then
-            echo -e "\033[1;36m当前使用的是 $API_TYPE API\033[0m"
-            echo -e "\033[0;37m要切换模型或 API，请使用: \033[1;32mcc -config\033[0m"
-            exit 0
-        fi
+        echo -e "\033[1;36m当前配置:\033[0m"
+        echo -e "  API 类型: \033[1;36m$API_TYPE\033[0m"
+        echo -e "  当前模型: \033[1;32m$MODEL\033[0m"
+        echo ""
         
-        local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
-        
-        if [ -z "$models" ]; then
-            echo -e "\033[1;31mERROR: 未找到已安装的模型\033[0m"
-            exit 1
-        fi
-        
-        echo -e "\033[0;37m已安装的模型:\033[0m"
-        local i=1
-        while IFS= read -r model; do
-            if [ "$model" = "$MODEL" ]; then
-                echo -e "  $i. \033[1;32m$model\033[0m (当前)"
-            else
-                echo -e "  $i. $model"
+        if [ "$API_TYPE" = "ollama" ]; then
+            # Ollama: 列出本地已下载的模型
+            local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+            
+            if [ -z "$models" ]; then
+                echo -e "\033[1;31mERROR: 未找到已安装的模型\033[0m"
+                exit 1
             fi
-            i=$((i + 1))
-        done <<< "$models"
+            
+            echo -e "\033[0;37m已安装的模型:\033[0m"
+            local i=1
+            while IFS= read -r model; do
+                if [ "$model" = "$MODEL" ]; then
+                    echo -e "  $i. \033[1;32m$model\033[0m (当前)"
+                else
+                    echo -e "  $i. $model"
+                fi
+                i=$((i + 1))
+            done <<< "$models"
+            
+            echo ""
+            echo -ne "\033[0;33m请选择模型 (序号): \033[0m"
+            read -r choice < /dev/tty
+            
+            local selected=$(echo "$models" | sed -n "${choice}p")
+            if [ -z "$selected" ]; then
+                echo -e "\033[1;31m无效选择\033[0m"
+                exit 1
+            fi
+        else
+            # 云端 API: 提供常见模型或手动输入
+            echo -e "\033[0;37m常见模型:\033[0m"
+            case "$API_TYPE" in
+                "openai")
+                    echo -e "  1. gpt-3.5-turbo"
+                    echo -e "  2. gpt-4"
+                    echo -e "  3. gpt-4-turbo"
+                    echo -e "  4. gpt-4o"
+                    echo -e "  5. gpt-4o-mini"
+                    ;;
+                "anthropic")
+                    echo -e "  1. claude-3-haiku-20240307"
+                    echo -e "  2. claude-3-sonnet-20240229"
+                    echo -e "  3. claude-3-opus-20240229"
+                    echo -e "  4. claude-3-5-sonnet-20241022"
+                    ;;
+                "deepseek")
+                    echo -e "  1. deepseek-chat"
+                    echo -e "  2. deepseek-coder"
+                    ;;
+                "qwen")
+                    echo -e "  1. qwen-plus"
+                    echo -e "  2. qwen-turbo"
+                    echo -e "  3. qwen-max"
+                    ;;
+                "doubao")
+                    echo -e "  1. doubao-pro-32k"
+                    echo -e "  2. doubao-lite-32k"
+                    ;;
+                *)
+                    echo -e "  \033[0;90m(自定义 API)\033[0m"
+                    ;;
+            esac
+            echo -e "  0. 手动输入模型名称"
+            echo ""
+            echo -ne "\033[0;33m请选择 (序号) 或直接输入模型名称: \033[0m"
+            read -r choice < /dev/tty
+            
+            local selected=""
+            case "$API_TYPE" in
+                "openai")
+                    case "$choice" in
+                        1) selected="gpt-3.5-turbo" ;;
+                        2) selected="gpt-4" ;;
+                        3) selected="gpt-4-turbo" ;;
+                        4) selected="gpt-4o" ;;
+                        5) selected="gpt-4o-mini" ;;
+                        0|*) 
+                            echo -ne "\033[0;33m输入模型名称: \033[0m"
+                            read -r selected < /dev/tty
+                            ;;
+                    esac
+                    ;;
+                "anthropic")
+                    case "$choice" in
+                        1) selected="claude-3-haiku-20240307" ;;
+                        2) selected="claude-3-sonnet-20240229" ;;
+                        3) selected="claude-3-opus-20240229" ;;
+                        4) selected="claude-3-5-sonnet-20241022" ;;
+                        0|*) 
+                            echo -ne "\033[0;33m输入模型名称: \033[0m"
+                            read -r selected < /dev/tty
+                            ;;
+                    esac
+                    ;;
+                "deepseek")
+                    case "$choice" in
+                        1) selected="deepseek-chat" ;;
+                        2) selected="deepseek-coder" ;;
+                        0|*) 
+                            echo -ne "\033[0;33m输入模型名称: \033[0m"
+                            read -r selected < /dev/tty
+                            ;;
+                    esac
+                    ;;
+                "qwen")
+                    case "$choice" in
+                        1) selected="qwen-plus" ;;
+                        2) selected="qwen-turbo" ;;
+                        3) selected="qwen-max" ;;
+                        0|*) 
+                            echo -ne "\033[0;33m输入模型名称: \033[0m"
+                            read -r selected < /dev/tty
+                            ;;
+                    esac
+                    ;;
+                "doubao")
+                    case "$choice" in
+                        1) selected="doubao-pro-32k" ;;
+                        2) selected="doubao-lite-32k" ;;
+                        0|*) 
+                            echo -ne "\033[0;33m输入模型名称: \033[0m"
+                            read -r selected < /dev/tty
+                            ;;
+                    esac
+                    ;;
+                *)
+                    # 自定义 API，直接输入
+                    selected="$choice"
+                    if [ "$choice" = "0" ] || [ -z "$selected" ]; then
+                        echo -ne "\033[0;33m输入模型名称: \033[0m"
+                        read -r selected < /dev/tty
+                    fi
+                    ;;
+            esac
+            
+            if [ -z "$selected" ]; then
+                echo -e "\033[1;31m无效输入\033[0m"
+                exit 1
+            fi
+        fi
+        
+        # 更新配置文件
+        if [ -f "$CONFIG_FILE" ]; then
+            if grep -q "^MODEL=" "$CONFIG_FILE" 2>/dev/null; then
+                sed -i "s/^MODEL=.*/MODEL=\"$selected\"/" "$CONFIG_FILE"
+            else
+                echo "MODEL=\"$selected\"" >> "$CONFIG_FILE"
+            fi
+        else
+            echo "MODEL=\"$selected\"" > "$CONFIG_FILE"
+        fi
         
         echo ""
-        echo -ne "\033[0;33m请选择模型 (序号): \033[0m"
-        read -r choice < /dev/tty
-        
-        local selected=$(echo "$models" | sed -n "${choice}p")
-        if [ -z "$selected" ]; then
-            echo -e "\033[1;31m无效选择\033[0m"
-            exit 1
-        fi
-        
-        # 更新脚本中的 MODEL 变量
-        sed -i "s/^MODEL=.*/MODEL=\"$selected\"/" "$HOME/cc.sh"
-        echo -e "\033[0;37m已切换到: $selected\033[0m"
+        echo -e "\033[1;32m✓ 已切换到: $selected\033[0m"
+        echo ""
+        echo -e "\033[0;37m提示: 使用 \033[1;32mcc testapi\033[0;37m 测试新模型连接\033[0m"
         exit 0
     fi
     
