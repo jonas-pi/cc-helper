@@ -125,29 +125,37 @@ Write-Output "  RAM: $totalRamGB GB"
 Write-Output "  CPU 核心: $cpuCores"
 Write-Output ""
 
-# 模型列表
+# 模型列表（按 PowerShell 支持度排序）
 $modelList = @(
-    @{Name="qwen2.5:0.5b"; Size="500MB"; RamNeed=2; Desc="最轻量，极快响应，适合低配置"},
-    @{Name="qwen2.5:1.5b"; Size="1.5GB"; RamNeed=4; Desc="轻量快速，推荐日常使用"},
-    @{Name="qwen2.5:3b"; Size="3GB"; RamNeed=8; Desc="平衡性能，准确度高"},
-    @{Name="qwen2.5:7b"; Size="7GB"; RamNeed=16; Desc="高性能，专业级准确度"},
-    @{Name="phi3.5"; Size="2.2GB"; RamNeed=6; Desc="微软模型，英文优秀，中文良好"},
-    @{Name="llama3.2:1b"; Size="1GB"; RamNeed=3; Desc="Meta轻量模型，快速响应"},
-    @{Name="llama3.2:3b"; Size="2GB"; RamNeed=6; Desc="Meta平衡模型，性能出色"}
+    @{Name="phi3.5"; Size="2.2GB"; RamNeed=6; Desc="微软模型，PowerShell 支持最佳"; PsSupport=10},
+    @{Name="llama3.2:1b"; Size="1GB"; RamNeed=3; Desc="Meta轻量模型，通用性强"; PsSupport=9},
+    @{Name="llama3.2:3b"; Size="2GB"; RamNeed=6; Desc="Meta平衡模型，性能出色"; PsSupport=9},
+    @{Name="qwen2.5:0.5b"; Size="500MB"; RamNeed=2; Desc="最轻量，极快响应，中文优秀"; PsSupport=7},
+    @{Name="qwen2.5:1.5b"; Size="1.5GB"; RamNeed=4; Desc="轻量快速，中文优秀"; PsSupport=7},
+    @{Name="qwen2.5:3b"; Size="3GB"; RamNeed=8; Desc="平衡性能，中文优秀"; PsSupport=7},
+    @{Name="qwen2.5:7b"; Size="7GB"; RamNeed=16; Desc="高性能，中文优秀"; PsSupport=7}
 )
 
-# 根据 RAM 给出推荐
-Write-Green "可用模型:"
+# 根据 RAM 和 PowerShell 支持度给出推荐
+Write-Green "可用模型 (按 PowerShell 支持度排序):"
 $recommended = 0
+$bestScore = 0
 for ($i = 0; $i -lt $modelList.Count; $i++) {
     $model = $modelList[$i]
     $num = $i + 1
     
-    # 判断是否推荐
+    # 计算推荐分数 (PowerShell 支持度 * RAM 是否满足)
+    $score = 0
     if ($totalRamGB -ge $model.RamNeed) {
-        if ($recommended -eq 0) {
+        $score = $model.PsSupport
+        if ($score -gt $bestScore) {
+            $bestScore = $score
             $recommended = $num
         }
+    }
+    
+    # 判断是否可用
+    if ($totalRamGB -ge $model.RamNeed) {
         Write-Host "  $num. " -NoNewline
         Write-Host "$($model.Name)" -ForegroundColor Green -NoNewline
         Write-Host " - $($model.Size) - $($model.Desc) (需要 $($model.RamNeed)GB RAM)"
@@ -159,7 +167,10 @@ for ($i = 0; $i -lt $modelList.Count; $i++) {
 Write-Output ""
 
 if ($recommended -gt 0) {
-    Write-Green "根据您的系统配置 (${totalRamGB}GB RAM)，推荐: 选项 $recommended"
+    Write-Host "根据您的系统配置 (${totalRamGB}GB RAM) 和 " -NoNewline
+    Write-Host "PowerShell 支持度" -ForegroundColor Cyan -NoNewline
+    Write-Host "，推荐: " -NoNewline
+    Write-Host "选项 $recommended" -ForegroundColor Green
 } else {
     Write-Yellow "警告: 系统 RAM 较低，建议选择最轻量的模型"
     $recommended = 1
