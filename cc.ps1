@@ -185,8 +185,11 @@ if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help") {
     Write-Host "示例: cc 我在哪个目录" -ForegroundColor Gray
     Write-Host "" -ForegroundColor Gray
     Write-Host "预设指令:" -ForegroundColor Gray
-    Write-Host "  cc hello    - 显示版本信息" -ForegroundColor Gray
-    Write-Host "  cc -u       - 更新脚本" -ForegroundColor Gray
+    Write-Host "  cc hello     - 显示版本信息" -ForegroundColor Gray
+    Write-Host "  cc -u        - 更新脚本" -ForegroundColor Gray
+    Write-Host "  cc -change   - 切换模型" -ForegroundColor Gray
+    Write-Host "  cc -add      - 安装新模型" -ForegroundColor Gray
+    Write-Host "  cc -del      - 删除模型" -ForegroundColor Gray
     exit 1
 }
 

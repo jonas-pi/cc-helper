@@ -129,14 +129,153 @@ main() {
         exit 0
     fi
     
+    # 预设指令: -change 切换模型
+    if [ "$first_arg" = "-change" ] || [ "$first_arg" = "change" ]; then
+        local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+        
+        if [ -z "$models" ]; then
+            echo -e "\033[1;31mERROR: 未找到已安装的模型\033[0m"
+            exit 1
+        fi
+        
+        echo -e "\033[0;37m已安装的模型:\033[0m"
+        local i=1
+        while IFS= read -r model; do
+            if [ "$model" = "$MODEL" ]; then
+                echo -e "  $i. \033[1;32m$model\033[0m (当前)"
+            else
+                echo -e "  $i. $model"
+            fi
+            i=$((i + 1))
+        done <<< "$models"
+        
+        echo ""
+        echo -ne "\033[0;33m请选择模型 (序号): \033[0m"
+        read -r choice < /dev/tty
+        
+        local selected=$(echo "$models" | sed -n "${choice}p")
+        if [ -z "$selected" ]; then
+            echo -e "\033[1;31m无效选择\033[0m"
+            exit 1
+        fi
+        
+        # 更新脚本中的 MODEL 变量
+        sed -i "s/^MODEL=.*/MODEL=\"$selected\"/" "$HOME/cc.sh"
+        echo -e "\033[0;37m已切换到: $selected\033[0m"
+        exit 0
+    fi
+    
+    # 预设指令: -add 安装新模型
+    if [ "$first_arg" = "-add" ] || [ "$first_arg" = "add" ]; then
+        echo -e "\033[0;37m推荐模型:\033[0m"
+        echo "  1. qwen2.5:0.5b  - 超轻量 (400MB)"
+        echo "  2. qwen2.5:1.5b  - 轻量推荐 (1GB)"
+        echo "  3. qwen2.5:3b    - 平衡之选 (2GB)"
+        echo "  4. qwen2.5:7b    - 高性能 (4.7GB)"
+        echo "  5. phi3.5        - 微软模型 (2.2GB)"
+        echo "  6. llama3.2:1b   - Meta轻量 (1.2GB)"
+        echo "  7. llama3.2:3b   - Meta平衡 (2GB)"
+        echo "  8. 自定义模型名"
+        echo ""
+        echo -ne "\033[0;33m请选择 (序号或输入模型名): \033[0m"
+        read -r choice < /dev/tty
+        
+        case "$choice" in
+            1) local model="qwen2.5:0.5b" ;;
+            2) local model="qwen2.5:1.5b" ;;
+            3) local model="qwen2.5:3b" ;;
+            4) local model="qwen2.5:7b" ;;
+            5) local model="phi3.5" ;;
+            6) local model="llama3.2:1b" ;;
+            7) local model="llama3.2:3b" ;;
+            8) echo -ne "\033[0;33m输入模型名: \033[0m"
+               read -r model < /dev/tty ;;
+            *) local model="$choice" ;;
+        esac
+        
+        if [ -z "$model" ]; then
+            echo -e "\033[1;31m无效输入\033[0m"
+            exit 1
+        fi
+        
+        echo -e "\033[0;37m正在安装 $model...\033[0m"
+        if ollama pull "$model"; then
+            echo -e "\033[0;37m安装完成\033[0m"
+            echo -ne "\033[0;33m是否切换到此模型? [y/n] \033[0m"
+            read -r switch < /dev/tty
+            if [ "$switch" = "y" ] || [ "$switch" = "Y" ] || [ -z "$switch" ]; then
+                sed -i "s/^MODEL=.*/MODEL=\"$model\"/" "$HOME/cc.sh"
+                echo -e "\033[0;37m已切换到: $model\033[0m"
+            fi
+        else
+            echo -e "\033[1;31m安装失败\033[0m"
+            exit 1
+        fi
+        exit 0
+    fi
+    
+    # 预设指令: -del 删除模型
+    if [ "$first_arg" = "-del" ] || [ "$first_arg" = "delete" ] || [ "$first_arg" = "rm" ]; then
+        local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+        
+        if [ -z "$models" ]; then
+            echo -e "\033[1;31mERROR: 未找到已安装的模型\033[0m"
+            exit 1
+        fi
+        
+        echo -e "\033[0;37m已安装的模型:\033[0m"
+        local i=1
+        while IFS= read -r model; do
+            if [ "$model" = "$MODEL" ]; then
+                echo -e "  $i. \033[1;32m$model\033[0m (当前使用)"
+            else
+                echo -e "  $i. $model"
+            fi
+            i=$((i + 1))
+        done <<< "$models"
+        
+        echo ""
+        echo -ne "\033[0;33m请选择要删除的模型 (序号，多个用空格分隔): \033[0m"
+        read -r choices < /dev/tty
+        
+        for choice in $choices; do
+            local selected=$(echo "$models" | sed -n "${choice}p")
+            if [ -z "$selected" ]; then
+                echo -e "\033[1;31m无效序号: $choice\033[0m"
+                continue
+            fi
+            
+            if [ "$selected" = "$MODEL" ]; then
+                echo -e "\033[1;33m警告: $selected 是当前使用的模型\033[0m"
+                echo -ne "\033[0;33m确认删除? [y/n] \033[0m"
+                read -r confirm < /dev/tty
+                if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+                    echo -e "\033[0;37m跳过 $selected\033[0m"
+                    continue
+                fi
+            fi
+            
+            echo -e "\033[0;37m正在删除 $selected...\033[0m"
+            if ollama rm "$selected" 2>/dev/null; then
+                echo -e "\033[0;37m已删除 $selected\033[0m"
+            else
+                echo -e "\033[1;31m删除失败: $selected\033[0m"
+            fi
+        done
+        exit 0
+    fi
+    
     # 帮助信息
     if [ $# -lt 1 ] || [ "$first_arg" = "-h" ] || [ "$first_arg" = "--help" ]; then
         echo "用法: cc <中文需求>"
         echo "示例: cc 查看当前目录"
         echo ""
         echo "预设指令："
-        echo "  cc hello    - 显示版本信息"
-        echo "  cc -u       - 更新脚本"
+        echo "  cc hello     - 显示版本信息"
+        echo "  cc -u        - 更新脚本"
+        echo "  cc -change   - 切换模型"
+        echo "  cc -add      - 安装新模型"
+        echo "  cc -del      - 删除模型"
         exit 1
     fi
 
