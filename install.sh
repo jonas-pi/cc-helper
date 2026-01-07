@@ -146,10 +146,18 @@ else
 fi
 echo ""
 
-# 4. 创建 cc.sh 脚本
-echo -e "${YELLOW}[4/4] 创建 cc.sh 脚本...${NC}"
+# 4. 下载 cc.sh 脚本
+echo -e "${YELLOW}[4/4] 下载 cc.sh 脚本...${NC}"
 
-cat > "$CC_SCRIPT_PATH" << 'CC_SCRIPT_EOF'
+# 从 GitHub 下载最新的 cc.sh
+if curl -fsSL "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.sh" -o "$CC_SCRIPT_PATH" 2>/dev/null; then
+    chmod +x "$CC_SCRIPT_PATH"
+    echo -e "  ${GREEN}✓ cc.sh 脚本下载成功${NC}"
+    echo ""
+else
+    # 如果下载失败，创建基本版本
+    echo -e "  ${YELLOW}下载失败，创建基本版本...${NC}"
+    cat > "$CC_SCRIPT_PATH" << 'CC_SCRIPT_EOF'
 #!/bin/bash
 
 # 颜色定义
