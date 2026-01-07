@@ -1,6 +1,6 @@
 @echo off
-REM cc 命令助手 - CMD 批处理包装器
-REM 自动检测编码并调用 PowerShell 脚本
+REM cc 命令助手 - PowerShell 包装器
+REM 支持在 CMD 和 PowerShell 中使用
 
 chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
@@ -14,8 +14,8 @@ if "%~1"=="" (
 REM 收集所有参数
 set "args=%*"
 
-REM 调用 PowerShell 脚本，使用 UTF-8 编码
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '%USERPROFILE%\cc.ps1' %args% }"
+REM 调用 PowerShell 脚本
+powershell -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\cc.ps1" %args%
 
 exit /b %ERRORLEVEL%
 

@@ -401,8 +401,8 @@ Write-Output ""
 Write-Yellow "创建 CMD 批处理文件..."
 $ccBatContent = @'
 @echo off
-REM cc 命令助手 - CMD 批处理包装器
-REM 自动检测编码并调用 PowerShell 脚本
+REM cc 命令助手 - PowerShell 包装器
+REM 支持在 CMD 和 PowerShell 中使用
 
 chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
@@ -416,8 +416,8 @@ if "%~1"=="" (
 REM 收集所有参数
 set "args=%*"
 
-REM 调用 PowerShell 脚本，使用 UTF-8 编码
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & '%USERPROFILE%\cc.ps1' %args% }"
+REM 调用 PowerShell 脚本
+powershell -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\cc.ps1" %args%
 
 exit /b %ERRORLEVEL%
 '@
@@ -439,11 +439,13 @@ Write-Output ""
 Write-Output ""
 Write-ColorOutput Yellow "╔════════════════════════════════════════════════════════════════╗"
 Write-ColorOutput Yellow "║                                                                ║"
-Write-ColorOutput Yellow "║              ⚠️  重要提示：请在 CMD 中使用 cc 命令              ║"
+Write-ColorOutput Yellow "║              ✓ cc 命令已就绪！                                  ║"
 Write-ColorOutput Yellow "║                                                                ║"
-Write-ColorOutput Yellow "║  1. 打开命令提示符（CMD）                                       ║"
+Write-ColorOutput Yellow "║  可在以下环境中使用：                                           ║"
+Write-ColorOutput Green   "║    • PowerShell                                               ║"
+Write-ColorOutput Green   "║    • CMD（命令提示符）                                         ║"
 Write-ColorOutput Yellow "║                                                                ║"
-Write-ColorOutput Yellow "║  2. 使用示例：                                                  ║"
+Write-ColorOutput Yellow "║  使用示例：                                                    ║"
 Write-ColorOutput Green   "║     cc 查看当前目录                                            ║"
 Write-ColorOutput Green   "║     cc 列出所有文件                                            ║"
 Write-ColorOutput Green   "║     cc 查看进程                                                ║"
@@ -458,7 +460,8 @@ Write-Output "  - CMD 批处理: $ccBatPath"
 Write-Output "  - 已添加到 PATH: $BIN_DIR"
 Write-Output ""
 Write-Yellow "故障排除："
-Write-Output "  - 如果 CMD 中找不到 cc 命令，请重新打开 CMD 窗口"
-Write-Output "  - 如果遇到权限问题，以管理员身份运行 CMD"
+Write-Output "  - 如果找不到 cc 命令，请重新打开终端窗口"
+Write-Output "  - PowerShell 中可直接使用，CMD 中通过批处理调用"
+Write-Output "  - 如果遇到权限问题，以管理员身份运行终端"
 Write-Output ""
 

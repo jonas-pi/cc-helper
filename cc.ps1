@@ -125,15 +125,15 @@ function Get-AICommand {
     
     # 针对 phi3.5 优化的提示词（使用英文提示词效果更好）
     $prompt = @"
-Convert the following Chinese request into a single Windows CMD command.
-Output ONLY the command, without any explanation, markdown, or extra text.
+Convert the following Chinese request into a single PowerShell command.
+Output ONLY the command, without any explanation, markdown, code blocks, or extra text.
 
 Request in Chinese: $query
 
-Command:
+PowerShell Command:
 "@
 
-    $systemMsg = "You are a Windows command-line assistant. Output only the command, nothing else."
+    $systemMsg = "You are a PowerShell assistant. Output only the PowerShell command, nothing else."
     
     # 构建 JSON
     $jsonBody = @{
