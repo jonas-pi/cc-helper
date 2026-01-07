@@ -189,7 +189,8 @@ $query
     }
     
     # 构建 JSON
-    $useStream = ($STREAM -and $MODE -eq "rest")
+    # PowerShell 版本暂不支持流式传输解析，强制禁用
+    $useStream = $false  # 未来版本将支持：($STREAM -and $MODE -eq "rest")
     $jsonBody = @{
         model = $MODEL
         messages = @(
