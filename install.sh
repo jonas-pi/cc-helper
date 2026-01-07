@@ -39,7 +39,7 @@ fi
 echo -e "${YELLOW}[1/4] 检查并安装 Ollama...${NC}"
 if command -v ollama &> /dev/null; then
     echo -e "${GREEN}✓ Ollama 已安装${NC}"
-    ollama --version
+    ollama --version 2>/dev/null || echo "  (版本信息不可用)"
 else
     echo -e "${YELLOW}正在安装 Ollama...${NC}"
     curl -fsSL https://ollama.com/install.sh | sh
