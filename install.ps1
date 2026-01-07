@@ -447,8 +447,6 @@ Write-ColorOutput Green   "║    • CMD（命令提示符）                  
 Write-ColorOutput Yellow "║                                                                ║"
 Write-ColorOutput Yellow "║  使用示例：                                                    ║"
 Write-ColorOutput Green   "║     cc hello           # 测试安装                              ║"
-Write-ColorOutput Green   "║     cc 查看当前目录                                            ║"
-Write-ColorOutput Green   "║     cc 列出所有文件                                            ║"
 Write-ColorOutput Yellow "║                                                                ║"
 Write-ColorOutput Yellow "║  更新脚本：                                                    ║"
 Write-ColorOutput Green   "║     cc -u              # 更新到最新版本                        ║"
