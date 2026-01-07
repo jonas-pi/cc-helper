@@ -5,7 +5,7 @@ function Write-ColorOutput($ForegroundColor, $Text) {
     $fc = $host.UI.RawUI.ForegroundColor
     $host.UI.RawUI.ForegroundColor = $ForegroundColor
     if ($Text) {
-        Write-Output $Text
+        Write-Host $Text
     }
     $host.UI.RawUI.ForegroundColor = $fc
 }

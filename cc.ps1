@@ -6,26 +6,52 @@ $VERSION = "0.3.0"
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
 
-# 默认配置
-$OLLAMA_URL = "http://127.0.0.1:11434/v1"
-$MODEL = "phi3.5"
-$MODE = "work"  # work: 工作模式（只输出命令）, rest: 休息模式（可以聊天）
-$API_TYPE = "ollama"  # ollama, openai, anthropic, custom
-$API_KEY = ""  # API 密钥（如果需要）
-$TARGET_SHELL = "powershell"  # powershell 或 cmd
-$STREAM = $false  # true: 流式传输（逐字显示）, false: 一次性返回
+# 默认配置（使用脚本作用域，确保在所有函数中可访问）
+$script:OLLAMA_URL = "http://127.0.0.1:11434/v1"
+$script:MODEL = "phi3.5"
+$script:MODE = "work"  # work: 工作模式（只输出命令）, rest: 休息模式（可以聊天）
+$script:API_TYPE = "ollama"  # ollama, openai, anthropic, custom
+$script:API_KEY = ""  # API 密钥（如果需要）
+$script:TARGET_SHELL = "powershell"  # powershell 或 cmd
+$script:STREAM = $false  # true: 流式传输（逐字显示）, false: 一次性返回
+
+# 为了向后兼容，也设置局部变量
+$OLLAMA_URL = $script:OLLAMA_URL
+$MODEL = $script:MODEL
+$MODE = $script:MODE
+$API_TYPE = $script:API_TYPE
+$API_KEY = $script:API_KEY
+$TARGET_SHELL = $script:TARGET_SHELL
+$STREAM = $script:STREAM
 
 # 加载配置文件
 if (Test-Path $CONFIG_FILE) {
     try {
         . $CONFIG_FILE
+        # 同步配置文件中的变量到脚本作用域
+        if ($MODEL) { $script:MODEL = $MODEL }
+        if ($MODE) { $script:MODE = $MODE }
+        if ($API_TYPE) { $script:API_TYPE = $API_TYPE }
+        if ($API_KEY) { $script:API_KEY = $API_KEY }
+        if ($OLLAMA_URL) { $script:OLLAMA_URL = $OLLAMA_URL }
+        if ($TARGET_SHELL) { $script:TARGET_SHELL = $TARGET_SHELL }
+        if ($STREAM) { $script:STREAM = $STREAM }
         # 确保 MODE 变量被正确设置（如果配置文件加载失败，使用默认值）
-        if (-not $MODE -or $MODE -eq "") {
-            $MODE = "work"
+        if (-not $script:MODE -or $script:MODE -eq "") {
+            $script:MODE = "work"
         }
+        # 同步回局部变量
+        $MODEL = $script:MODEL
+        $MODE = $script:MODE
+        $API_TYPE = $script:API_TYPE
+        $API_KEY = $script:API_KEY
+        $OLLAMA_URL = $script:OLLAMA_URL
+        $TARGET_SHELL = $script:TARGET_SHELL
+        $STREAM = $script:STREAM
     } catch {
         # 如果配置文件加载失败，使用默认值
         Write-Host "警告: 配置文件加载失败，使用默认设置" -ForegroundColor Yellow
+        $script:MODE = "work"
         $MODE = "work"
     }
 }
@@ -144,9 +170,9 @@ function Get-AICommand {
     $prompt = ""
     $systemMsg = ""
     
-    if ($MODE -eq "rest") {
+    if ($script:MODE -eq "rest") {
         # 休息模式：可以聊天
-        $shellType = if ($TARGET_SHELL -eq "cmd") { "CMD" } else { "PowerShell" }
+        $shellType = if ($script:TARGET_SHELL -eq "cmd") { "CMD" } else { "PowerShell" }
         $prompt = @"
 请用轻松友好的语气回复用户。可以聊天、解答问题、提供建议。
 
@@ -156,9 +182,9 @@ $query
 回复：
 "@
         $systemMsg = "你是 cc，一个 AI 命令助手。性格：表面高冷实际上内心可爱热情的女孩子。你目前处于休息模式，可以和用户聊天交流。你的主要工作是帮助用户生成 $shellType 命令（工作模式），但现在是休息时间。回复时保持简洁、友好，偶尔展现出可爱的一面。"
-    } else {
-        # 工作模式：根据目标 Shell 生成不同提示词
-        if ($TARGET_SHELL -eq "cmd") {
+        } else {
+            # 工作模式：根据目标 Shell 生成不同提示词
+            if ($script:TARGET_SHELL -eq "cmd") {
             $prompt = @"
 判断以下输入是否是命令需求：
 - 如果是命令需求（如"查看文件"、"列出目录"等），转换为一条 Windows CMD 命令并输出
@@ -190,9 +216,11 @@ $query
     
     # 构建 JSON
     # PowerShell 版本暂不支持流式传输解析，强制禁用
-    $useStream = $false  # 未来版本将支持：($STREAM -and $MODE -eq "rest")
+    $useStream = $false  # 未来版本将支持：($script:STREAM -and $script:MODE -eq "rest")
+    # 确保使用脚本作用域的 MODEL 变量
+    $currentModel = $script:MODEL
     $jsonBody = @{
-        model = $MODEL
+        model = $currentModel
         messages = @(
             @{
                 role = "system"
@@ -221,7 +249,7 @@ $query
             $headers["Authorization"] = "Bearer ollama"
         }
         
-        $response = Invoke-RestMethod -Uri "$OLLAMA_URL/chat/completions" `
+        $response = Invoke-RestMethod -Uri "$script:OLLAMA_URL/chat/completions" `
             -Method Post `
             -Headers $headers `
             -Body $jsonBody `
@@ -433,7 +461,7 @@ if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-tes
         
         # 发送测试请求
         $startTime = Get-Date
-        $testResponse = Invoke-WebRequest -Uri "$OLLAMA_URL/chat/completions" `
+        $testResponse = Invoke-WebRequest -Uri "$script:OLLAMA_URL/chat/completions" `
             -Method Post `
             -Headers $headers `
             -Body $testBody `

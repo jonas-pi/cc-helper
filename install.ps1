@@ -9,7 +9,7 @@ function Write-ColorOutput($ForegroundColor, $Text) {
     $fc = $host.UI.RawUI.ForegroundColor
     $host.UI.RawUI.ForegroundColor = $ForegroundColor
     if ($Text) {
-        Write-Output $Text
+        Write-Host $Text
     }
     $host.UI.RawUI.ForegroundColor = $fc
 }
@@ -328,201 +328,64 @@ if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
 }
 Write-Output ""
 
-# 4. 创建 cc.ps1 脚本
-Write-Yellow "[4/4] 创建 cc.ps1 脚本..."
+# 4. 下载并配置 cc.ps1 脚本
+Write-Yellow "[4/4] 下载并配置 cc.ps1 脚本..."
+try {
+    $webClient = New-Object System.Net.WebClient
+    $webClient.Encoding = [System.Text.Encoding]::UTF8
+    $scriptUrl = "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.ps1"
+    $ccScriptContent = $webClient.DownloadString($scriptUrl)
+    
+    # 替换默认模型为用户选择的模型（如果脚本中有硬编码的默认模型）
+    # 注意：新版本的 cc.ps1 已经有自动检测模型功能，但我们可以设置一个合理的默认值
+    # 使用更精确的正则表达式匹配，确保只替换默认配置行
+    $ccScriptContent = $ccScriptContent -replace '(?m)^(\s*\$MODEL\s*=\s*)"[^"]+"', "`$1`"$OLLAMA_MODEL`""
+    
+    # 检测控制台编码并保存
+    $currentEncoding = [Console]::OutputEncoding
+    if ($currentEncoding.CodePage -eq 936) {
+        $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+    } else {
+        $saveEncoding = New-Object System.Text.UTF8Encoding $true
+    }
+    
+    [System.IO.File]::WriteAllText($CC_SCRIPT_PATH, $ccScriptContent, $saveEncoding)
+    Write-Green "✓ cc.ps1 脚本下载并配置成功"
+    
+    # 创建或更新配置文件，确保使用正确的模型
+    $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
+    $configContent = @"
+# cc 命令助手配置文件
+# 此文件由安装脚本自动生成
 
-$ccScriptContent = @'
+`$MODEL = "$OLLAMA_MODEL"
+`$API_TYPE = "ollama"
+`$OLLAMA_URL = "http://127.0.0.1:11434/v1"
+`$MODE = "work"
+"@
+    
+    [System.IO.File]::WriteAllText($CONFIG_FILE, $configContent, $saveEncoding)
+    Write-Green "✓ 配置文件已更新为使用模型: $OLLAMA_MODEL"
+} catch {
+    Write-Red "✗ cc.ps1 脚本下载失败: $($_.Exception.Message)"
+    Write-Yellow "尝试使用本地模板..."
+    
+    # 如果下载失败，使用简化的本地模板（包含自动检测功能提示）
+    $fallbackScript = @"
 # cc 命令助手 PowerShell 脚本
+# 注意: 这是简化版本，建议从 GitHub 下载完整版本
 
 # Ollama 配置
-$OLLAMA_URL = "http://127.0.0.1:11434/v1"
-$MODEL = "qwen2.5:1.5b"
+`$OLLAMA_URL = "http://127.0.0.1:11434/v1"
+`$MODEL = "$OLLAMA_MODEL"
 
-# 清理命令输出
-function Sanitize-Command {
-    param([string]$cmd)
-    if ([string]::IsNullOrWhiteSpace($cmd)) {
-        return ""
-    }
-    # 移除代码块标记（包括 PowerShell、bash、shell 等）
-    $cmd = $cmd -replace '```powershell', '' -replace '```ps1', '' -replace '```bash', '' -replace '```shell', '' -replace '```', ''
-    # 移除首尾空白和换行
-    $cmd = $cmd.Trim()
-    # 移除末尾的反斜杠
-    $cmd = $cmd -replace '\\$', ''
-    
-    # 只取第一行
-    $lines = $cmd -split "`n", 2
-    $cmd = $lines[0].Trim()
-    
-    # 移除可能的提示词残留（更全面的匹配）
-    $cmd = $cmd -replace '^Windows Power.*?:', '' -replace '^只输出命令.*?:', '' -replace '^命令.*?:', '' -replace '^将中文需求.*?:', ''
-    $cmd = $cmd -replace '^你是一个.*?:', '' -replace '^转换助手.*?:', '' -replace '^Windows.*?:', ''
-    
-    # 移除可能的冒号和后续文本（如果模型返回了 "命令: xxx" 格式）
-    if ($cmd -match '^[^:]+:\s*(.+)$') {
-        $cmd = $matches[1].Trim()
-    }
-    
-    # 如果命令包含大量中文字符或问号（可能是编码问题），尝试提取命令部分
-    $chineseCount = ([regex]::Matches($cmd, '[\u4e00-\u9fff]')).Count
-    $questionMarkCount = ([regex]::Matches($cmd, '\?')).Count
-    
-    if ($chineseCount -gt 5 -or $questionMarkCount -gt 3) {
-        # 尝试提取第一个看起来像命令的部分
-        # 匹配以字母开头的命令（可能包含连字符、下划线、点号）
-        if ($cmd -match '([A-Za-z][A-Za-z0-9\-_\.]*\s+[^\u4e00-\u9fff\n]*)') {
-            $potentialCmd = $matches[1].Trim()
-            if ($potentialCmd.Length -gt 0 -and $potentialCmd.Length -lt $cmd.Length) {
-                $cmd = $potentialCmd
-            }
-        }
-        # 如果还是包含中文字符，尝试提取最后一个看起来像命令的部分
-        if ($cmd -match '.*?([A-Za-z][A-Za-z0-9\-_\.]*\s*.*?)$') {
-            $potentialCmd = $matches[1].Trim()
-            if ($potentialCmd.Length -gt 0) {
-                $cmd = $potentialCmd
-            }
-        }
-    }
-    
-    # 再次清理首尾空白
-    $cmd = $cmd.Trim()
-    return $cmd
-}
-
-# 获取命令（重命名以避免与 PowerShell 内置 cmdlet 冲突）
-function Get-AICommand {
-    param([string]$query)
-    
-    # 构建提示词（简化，避免模型返回提示词本身）
-    $prompt = @"
-将中文需求转换为一条可直接执行的 Windows PowerShell 命令。
-只输出命令，不要解释、不要 Markdown、不要占位符、不要代码块标记。
-如果缺少参数，使用最常见的默认命令。
-注意：代理设置通常指 HTTP/HTTPS 代理（环境变量 http_proxy, https_proxy），不是 DNS 设置。
-
-需求：
-$query
-
-命令：
+Write-Host "ERROR: 请从 GitHub 下载完整版本的 cc.ps1" -ForegroundColor Red
+Write-Host "URL: https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.ps1" -ForegroundColor Yellow
+exit 1
 "@
-
-    $systemMsg = "你是一个 Windows PowerShell 命令转换助手。只输出命令，不要任何解释。"
-    
-    # 构建 JSON
-    $jsonBody = @{
-        model = $MODEL
-        messages = @(
-            @{
-                role = "system"
-                content = $systemMsg
-            },
-            @{
-                role = "user"
-                content = $prompt
-            }
-        )
-        temperature = 0
-        max_tokens = 128
-    } | ConvertTo-Json -Depth 10
-
-    # 调用 Ollama API
-    try {
-        $response = Invoke-RestMethod -Uri "$OLLAMA_URL/chat/completions" `
-            -Method Post `
-            -ContentType "application/json" `
-            -Body $jsonBody `
-            -ErrorAction Stop
-
-        if ($response.choices -and $response.choices.Count -gt 0 -and $response.choices[0].message.content) {
-            $content = $response.choices[0].message.content
-            # 确保返回的是字符串，并处理可能的编码问题
-            if ($content -is [string]) {
-                $content = $content.Trim()
-            } else {
-                $content = $content.ToString().Trim()
-            }
-            
-            # 如果内容包含中文字符且看起来像是提示词，尝试提取命令部分
-            # 常见的 PowerShell 命令模式
-            $commonCommands = @('Get-Location', 'Get-ChildItem', 'Set-Location', 'Get-Process', 
-                               'Get-Service', 'Get-Content', 'Select-String', 'Where-Object',
-                               'pwd', 'ls', 'dir', 'cd', 'cat', 'type', 'findstr', 'grep')
-            
-            foreach ($cmdPattern in $commonCommands) {
-                if ($content -match $cmdPattern) {
-                    # 提取从命令开始到行尾的内容
-                    $match = [regex]::Match($content, "$cmdPattern.*")
-                    if ($match.Success) {
-                        $extracted = $match.Value.Trim()
-                        # 只取第一行
-                        $extracted = ($extracted -split "`n")[0].Trim()
-                        if ($extracted.Length -gt 0) {
-                            return $extracted
-                        }
-                    }
-                }
-            }
-            
-            return $content
-        } else {
-            return "ERROR: empty model output"
-        }
-    } catch {
-        if ($_.ErrorDetails.Message) {
-            try {
-                $errorObj = $_.ErrorDetails.Message | ConvertFrom-Json
-                if ($errorObj.error.message) {
-                    return "ERROR: $($errorObj.error.message)"
-                }
-            } catch {
-                # 忽略 JSON 解析错误
-            }
-        }
-        return "ERROR: $($_.Exception.Message)"
-    }
+    [System.IO.File]::WriteAllText($CC_SCRIPT_PATH, $fallbackScript, [System.Text.Encoding]::UTF8)
+    Write-Yellow "⚠ 已创建占位脚本，请手动下载完整版本"
 }
-
-# 主函数
-if ($args.Count -lt 1) {
-    Write-Host "用法: cc <中文需求>" -ForegroundColor Red
-    exit 1
-}
-
-$userQuery = $args -join " "
-$cmd = Get-AICommand $userQuery
-
-if ($cmd -match "^ERROR:") {
-    Write-Host $cmd -ForegroundColor Red
-    exit 1
-}
-
-# 清理命令
-$cmd = Sanitize-Command $cmd
-
-if ([string]::IsNullOrWhiteSpace($cmd)) {
-    Write-Host "错误: 模型返回了空命令" -ForegroundColor Red
-    exit 1
-}
-
-Write-Host ""
-Write-Host "> AI 建议: $cmd" -ForegroundColor Green
-Write-Host ""
-
-$confirm = Read-Host "确认执行该命令吗？(y/Enter 执行, n 退出)"
-if ([string]::IsNullOrWhiteSpace($confirm) -or $confirm -eq "y" -or $confirm -eq "yes") {
-    Write-Host ""
-    Write-Host "正在执行: $cmd" -ForegroundColor Yellow
-    Write-Host ""
-    Invoke-Expression $cmd
-} else {
-    Write-Host "已取消执行。"
-}
-'@
-
-$ccScriptContent | Out-File -FilePath $CC_SCRIPT_PATH -Encoding UTF8
-Write-Green "✓ cc.ps1 脚本创建成功"
 Write-Output ""
 
 # 5. 创建 bin 目录并设置 PATH
