@@ -107,12 +107,9 @@ if ollama list 2>/dev/null | grep -q "$OLLAMA_MODEL"; then
 else
     echo -e "${YELLOW}正在拉取模型 ${OLLAMA_MODEL}...${NC}"
     echo -e "  ${YELLOW}（这可能需要一些时间，请耐心等待）${NC}"
-    echo ""
-    if ollama pull "$OLLAMA_MODEL"; then
-        echo ""
+    if ollama pull "$OLLAMA_MODEL" 2>&1; then
         echo -e "  ${GREEN}✓ 模型拉取成功${NC}"
     else
-        echo ""
         echo -e "  ${RED}✗ 模型拉取失败${NC}"
         exit 1
     fi
