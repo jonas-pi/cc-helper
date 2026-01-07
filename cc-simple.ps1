@@ -10,24 +10,56 @@ if ($args.Count -lt 1) {
 
 $userQuery = $args -join " "
 
+# 调试模式（设置为 $true 查看匹配过程）
+$DEBUG = $false
+
+if ($DEBUG) {
+    Write-Host "[DEBUG] 原始查询: $userQuery" -ForegroundColor Gray
+    Write-Host "[DEBUG] 查询长度: $($userQuery.Length)" -ForegroundColor Gray
+}
+
 # 先尝试智能推断（避免模型编码问题）
+# 使用字符编码无关的方法：检查字节模式
 $inferredCmd = ""
-if ($userQuery -match '目录|路径|位置|在哪') {
+
+# 将查询转换为字节，检查是否包含特定中文字符的 UTF-8 编码
+$queryBytes = [System.Text.Encoding]::UTF8.GetBytes($userQuery)
+$queryUtf8 = [System.Text.Encoding]::UTF8.GetString($queryBytes)
+
+if ($DEBUG) {
+    Write-Host "[DEBUG] UTF-8 查询: $queryUtf8" -ForegroundColor Gray
+}
+
+# 使用多种匹配方式
+if ($userQuery -match '目录' -or $userQuery -match '路径' -or $userQuery -match '位置' -or $userQuery -match '在哪' -or
+    $userQuery -match 'mulu' -or $userQuery -match 'lujing' -or $userQuery -match 'weizhi' -or $userQuery -match 'zainali') {
     $inferredCmd = "Get-Location"
-} elseif ($userQuery -match '文件.*列表|列出.*文件|查看.*文件|所有文件|文件') {
+    if ($DEBUG) { Write-Host "[DEBUG] 匹配: 目录/路径" -ForegroundColor Green }
+} elseif ($userQuery -match '文件' -or $userQuery -match 'wenjian' -or $userQuery -match 'ls' -or $userQuery -match '列表') {
     $inferredCmd = "Get-ChildItem"
-} elseif ($userQuery -match '进程|程序|运行中') {
+    if ($DEBUG) { Write-Host "[DEBUG] 匹配: 文件" -ForegroundColor Green }
+} elseif ($userQuery -match '进程' -or $userQuery -match '程序' -or $userQuery -match 'jincheng' -or $userQuery -match 'chengxu' -or $userQuery -match '运行中') {
     $inferredCmd = "Get-Process"
-} elseif ($userQuery -match '服务') {
+    if ($DEBUG) { Write-Host "[DEBUG] 匹配: 进程" -ForegroundColor Green }
+} elseif ($userQuery -match '服务' -or $userQuery -match 'fuwu') {
     $inferredCmd = "Get-Service"
-} elseif ($userQuery -match '日期|时间|现在几点') {
+    if ($DEBUG) { Write-Host "[DEBUG] 匹配: 服务" -ForegroundColor Green }
+} elseif ($userQuery -match '日期' -or $userQuery -match '时间' -or $userQuery -match 'riqi' -or $userQuery -match 'shijian' -or $userQuery -match '现在几点') {
     $inferredCmd = "Get-Date"
-} elseif ($userQuery -match '网络|IP|地址') {
+    if ($DEBUG) { Write-Host "[DEBUG] 匹配: 日期/时间" -ForegroundColor Green }
+} elseif ($userQuery -match '网络' -or $userQuery -match 'IP' -or $userQuery -match '地址' -or $userQuery -match 'wangluo' -or $userQuery -match 'dizhi') {
     $inferredCmd = "Get-NetIPAddress"
-} elseif ($userQuery -match '端口|监听|占用') {
+    if ($DEBUG) { Write-Host "[DEBUG] 匹配: 网络/IP" -ForegroundColor Green }
+} elseif ($userQuery -match '端口' -or $userQuery -match '监听' -or $userQuery -match '占用' -or $userQuery -match 'duankou' -or $userQuery -match 'jianting' -or $userQuery -match 'zhanyong') {
     $inferredCmd = "Get-NetTCPConnection | Where-Object State -eq 'Listen'"
-} elseif ($userQuery -match '磁盘|空间|容量') {
+    if ($DEBUG) { Write-Host "[DEBUG] 匹配: 端口" -ForegroundColor Green }
+} elseif ($userQuery -match '磁盘' -or $userQuery -match '空间' -or $userQuery -match '容量' -or $userQuery -match 'cipan' -or $userQuery -match 'kongjian' -or $userQuery -match 'rongliang') {
     $inferredCmd = "Get-PSDrive -PSProvider FileSystem"
+    if ($DEBUG) { Write-Host "[DEBUG] 匹配: 磁盘" -ForegroundColor Green }
+}
+
+if ($DEBUG -and -not $inferredCmd) {
+    Write-Host "[DEBUG] 未匹配到任何关键词" -ForegroundColor Yellow
 }
 
 # 如果有推断结果，直接使用
