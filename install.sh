@@ -90,7 +90,7 @@ for i in {1..5}; do
         if [ $i -lt 5 ]; then
             echo -e "  ${YELLOW}等待服务响应... (${i}/5)${NC}"
             sleep 1
-        fi
+fi
     fi
 done
 
