@@ -167,24 +167,13 @@ $query"
                 Write-Host "[DEBUG] 模型原始返回: $content" -ForegroundColor Magenta
             }
             
-            # 如果内容全是问号，可能是编码问题，尝试根据查询推断命令
+            # 如果内容全是问号，可能是编码问题
             if ($content -match '^\?+$' -or ([regex]::Matches($content, '\?')).Count -gt ($content.Length * 0.5)) {
                 if ($DEBUG) {
-                    Write-Host "[DEBUG] 检测到问号过多，尝试根据查询推断命令" -ForegroundColor Yellow
+                    Write-Host "[DEBUG] 检测到问号过多（可能是编码问题），返回原始内容以便主函数处理" -ForegroundColor Yellow
                 }
-                # 根据常见查询推断命令
-                $queryLower = $query.ToLower()
-                if ($queryLower -match '目录|路径|位置|在哪') {
-                    return "Get-Location"
-                } elseif ($queryLower -match '文件|列表|查看.*文件') {
-                    return "Get-ChildItem"
-                } elseif ($queryLower -match '进程|程序') {
-                    return "Get-Process"
-                } elseif ($queryLower -match '服务') {
-                    return "Get-Service"
-                } elseif ($queryLower -match '日期|时间') {
-                    return "Get-Date"
-                }
+                # 返回问号内容，让主函数的智能推断处理
+                return $content
             }
             
             # 尝试直接提取命令（在清理之前）
@@ -230,8 +219,11 @@ if ($args.Count -lt 1) {
 }
 
 $userQuery = $args -join " "
+
+# 尝试从模型获取命令
 $cmd = Get-AICommand $userQuery
 
+# 如果返回错误，显示错误并退出
 if ($cmd -match "^ERROR:") {
     Write-Host $cmd -ForegroundColor Red
     exit 1
@@ -239,6 +231,40 @@ if ($cmd -match "^ERROR:") {
 
 # 清理命令
 $cmd = Sanitize-Command $cmd
+
+# 如果清理后的命令无效（全是问号或为空），尝试智能推断
+if ([string]::IsNullOrWhiteSpace($cmd) -or $cmd -match '^\?+$' -or ([regex]::Matches($cmd, '\?')).Count -gt 10) {
+    if ($DEBUG) {
+        Write-Host "[DEBUG] 命令无效，尝试根据原始查询智能推断..." -ForegroundColor Yellow
+    }
+    
+    # 根据原始查询关键词推断命令
+    $inferredCmd = ""
+    if ($userQuery -match '目录|路径|位置|在哪') {
+        $inferredCmd = "Get-Location"
+    } elseif ($userQuery -match '文件.*列表|列出.*文件|查看.*文件|所有文件') {
+        $inferredCmd = "Get-ChildItem"
+    } elseif ($userQuery -match '进程|程序|运行中') {
+        $inferredCmd = "Get-Process"
+    } elseif ($userQuery -match '服务') {
+        $inferredCmd = "Get-Service"
+    } elseif ($userQuery -match '日期|时间|现在几点') {
+        $inferredCmd = "Get-Date"
+    } elseif ($userQuery -match '网络|IP|地址') {
+        $inferredCmd = "Get-NetIPAddress"
+    } elseif ($userQuery -match '端口|监听') {
+        $inferredCmd = "Get-NetTCPConnection"
+    } elseif ($userQuery -match '磁盘|空间|容量') {
+        $inferredCmd = "Get-PSDrive"
+    }
+    
+    if ($inferredCmd) {
+        if ($DEBUG) {
+            Write-Host "[DEBUG] 推断的命令: $inferredCmd" -ForegroundColor Green
+        }
+        $cmd = $inferredCmd
+    }
+}
 
 if ([string]::IsNullOrWhiteSpace($cmd) -or $cmd -match '^\?+$') {
     Write-Host "错误: 模型返回了无效命令（可能是编码问题）" -ForegroundColor Red
