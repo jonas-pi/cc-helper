@@ -201,6 +201,10 @@ if ($firstArg -eq "hello") {
     Write-Host "$EMOJI_HELLO cc v$VERSION" -ForegroundColor Gray
     Write-Host ""
     
+    # 显示 API 类型
+    Write-Host "API 类型: " -NoNewline -ForegroundColor Gray
+    Write-Host "$API_TYPE" -ForegroundColor Cyan
+    
     # 显示当前模型
     Write-Host "当前模型: " -NoNewline -ForegroundColor Gray
     Write-Host "$MODEL" -ForegroundColor Green
@@ -215,25 +219,33 @@ if ($firstArg -eq "hello") {
         Write-Host " (命令助手)" -ForegroundColor Gray
     }
     
-    # 列出所有已安装的模型
-    $modelList = ollama list 2>$null
-    if ($modelList) {
-        $models = $modelList | Select-Object -Skip 1 | ForEach-Object {
-            ($_ -split '\s+')[0]
-        } | Where-Object { $_ -ne "" }
-        
-        if ($models.Count -gt 0) {
-            Write-Host ""
-            Write-Host "已安装的模型:" -ForegroundColor Gray
-            foreach ($model in $models) {
-                if ($model -eq $MODEL) {
-                    Write-Host "  $BULLET_CURRENT " -NoNewline
-                    Write-Host "$model" -ForegroundColor Green
-                } else {
-                    Write-Host "  $BULLET $model"
+    # 根据 API 类型显示模型列表
+    if ($API_TYPE -eq "ollama") {
+        # Ollama: 列出本地安装的模型
+        $modelList = ollama list 2>$null
+        if ($modelList) {
+            $models = $modelList | Select-Object -Skip 1 | ForEach-Object {
+                ($_ -split '\s+')[0]
+            } | Where-Object { $_ -ne "" }
+            
+            if ($models.Count -gt 0) {
+                Write-Host ""
+                Write-Host "已安装的模型:" -ForegroundColor Gray
+                foreach ($model in $models) {
+                    if ($model -eq $MODEL) {
+                        Write-Host "  $BULLET_CURRENT " -NoNewline
+                        Write-Host "$model" -ForegroundColor Green
+                    } else {
+                        Write-Host "  $BULLET $model"
+                    }
                 }
             }
         }
+    } else {
+        # 其他 API: 显示当前配置的 API 地址
+        Write-Host ""
+        Write-Host "API 地址: " -NoNewline -ForegroundColor Gray
+        Write-Host "$OLLAMA_URL" -ForegroundColor DarkGray
     }
     
     Write-Host ""
@@ -394,6 +406,14 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
 
 # 预设指令: -change 切换模型
 if ($firstArg -eq "-change" -or $firstArg -eq "change") {
+    # 检查是否使用 Ollama
+    if ($API_TYPE -ne "ollama") {
+        Write-Host "当前使用的是 $API_TYPE API" -ForegroundColor Cyan
+        Write-Host "要切换模型或 API，请使用: " -NoNewline -ForegroundColor Gray
+        Write-Host "cc -config" -ForegroundColor Green
+        exit 0
+    }
+    
     $modelList = ollama list 2>$null
     if (-not $modelList) {
         Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
@@ -633,6 +653,54 @@ if ($firstArg -eq "-config" -or $firstArg -eq "config") {
     
     Write-Host ""
     Write-Host "✓ 配置已保存到 $CONFIG_FILE" -ForegroundColor Green
+    
+    # 测试 API 连接
+    Write-Host ""
+    Write-Host "正在测试 API 连接..." -ForegroundColor Yellow
+    
+    try {
+        $headers = @{
+            "Content-Type" = "application/json"
+        }
+        
+        if ($API_KEY) {
+            $headers["Authorization"] = "Bearer $API_KEY"
+        } elseif ($API_TYPE -eq "ollama") {
+            $headers["Authorization"] = "Bearer ollama"
+        }
+        
+        $testBody = @{
+            model = $MODEL
+            messages = @(
+                @{
+                    role = "user"
+                    content = "hi"
+                }
+            )
+            max_tokens = 5
+        } | ConvertTo-Json -Depth 10
+        
+        $testResponse = Invoke-RestMethod -Uri "$OLLAMA_URL/chat/completions" `
+            -Method Post `
+            -Headers $headers `
+            -Body $testBody `
+            -TimeoutSec 10 `
+            -ErrorAction Stop
+        
+        if ($testResponse.choices -and $testResponse.choices.Count -gt 0) {
+            Write-Host "✓ API 连接成功！模型响应正常" -ForegroundColor Green
+        } else {
+            Write-Host "⚠ API 连接成功，但模型响应异常" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "✗ API 连接失败: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "请检查:" -ForegroundColor Yellow
+        Write-Host "  1. API Key 是否正确" -ForegroundColor Gray
+        Write-Host "  2. 模型名称是否正确" -ForegroundColor Gray
+        Write-Host "  3. 网络连接是否正常" -ForegroundColor Gray
+    }
+    
+    Write-Host ""
     Write-Host "现在运行: " -NoNewline; Write-Host "cc hello" -ForegroundColor Green
     exit 0
 }

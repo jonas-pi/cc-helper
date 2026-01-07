@@ -167,6 +167,9 @@ main() {
         echo -e "\033[0;37m$EMOJI_HELLO cc v$VERSION\033[0m"
         echo ""
         
+        # 显示 API 类型
+        echo -e "\033[0;37mAPI 类型: \033[1;36m$API_TYPE\033[0m"
+        
         # 显示当前模型
         echo -e "\033[0;37m当前模型: \033[1;32m$MODEL\033[0m"
         
@@ -177,18 +180,25 @@ main() {
             echo -e "\033[0;37m当前模式: \033[1;36m工作模式\033[0m \033[0;37m(命令助手)\033[0m"
         fi
         
-        # 列出所有已安装的模型
-        local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
-        if [ -n "$models" ]; then
+        # 根据 API 类型显示模型列表
+        if [ "$API_TYPE" = "ollama" ]; then
+            # Ollama: 列出本地安装的模型
+            local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+            if [ -n "$models" ]; then
+                echo ""
+                echo -e "\033[0;37m已安装的模型:\033[0m"
+                while IFS= read -r model; do
+                    if [ "$model" = "$MODEL" ]; then
+                        echo -e "  $BULLET_CURRENT \033[1;32m$model\033[0m"
+                    else
+                        echo -e "  $BULLET $model"
+                    fi
+                done <<< "$models"
+            fi
+        else
+            # 其他 API: 显示当前配置的 API 地址
             echo ""
-            echo -e "\033[0;37m已安装的模型:\033[0m"
-            while IFS= read -r model; do
-                if [ "$model" = "$MODEL" ]; then
-                    echo -e "  $BULLET_CURRENT \033[1;32m$model\033[0m"
-                else
-                    echo -e "  $BULLET $model"
-                fi
-            done <<< "$models"
+            echo -e "\033[0;37mAPI 地址: \033[0;90m$OLLAMA_URL\033[0m"
         fi
         
         echo ""
@@ -272,6 +282,13 @@ main() {
     
     # 预设指令: -change 切换模型
     if [ "$first_arg" = "-change" ] || [ "$first_arg" = "change" ]; then
+        # 检查是否使用 Ollama
+        if [ "$API_TYPE" != "ollama" ]; then
+            echo -e "\033[1;36m当前使用的是 $API_TYPE API\033[0m"
+            echo -e "\033[0;37m要切换模型或 API，请使用: \033[1;32mcc -config\033[0m"
+            exit 0
+        fi
+        
         local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
         
         if [ -z "$models" ]; then
@@ -478,6 +495,47 @@ EOF
         
         echo ""
         echo -e "\033[1;32m✓ 配置已保存到 $CONFIG_FILE\033[0m"
+        
+        # 测试 API 连接
+        echo ""
+        echo -e "\033[0;33m正在测试 API 连接...\033[0m"
+        
+        local test_auth_header=""
+        if [ -n "$API_KEY" ]; then
+            test_auth_header="-H \"Authorization: Bearer $API_KEY\""
+        elif [ "$API_TYPE" = "ollama" ]; then
+            test_auth_header="-H \"Authorization: Bearer ollama\""
+        fi
+        
+        local test_body=$(printf '{
+            "model": "%s",
+            "messages": [
+                {"role": "user", "content": "hi"}
+            ],
+            "max_tokens": 5
+        }' "$MODEL")
+        
+        local test_response=$(timeout 10 curl -s -X POST "${OLLAMA_URL}/chat/completions" \
+            -H "Content-Type: application/json" \
+            $test_auth_header \
+            -d "$test_body" 2>&1)
+        
+        if [ $? -eq 0 ]; then
+            local test_content=$(echo "$test_response" | jq -r '.choices[0].message.content // empty' 2>/dev/null)
+            if [ -n "$test_content" ] && [ "$test_content" != "null" ]; then
+                echo -e "\033[1;32m✓ API 连接成功！模型响应正常\033[0m"
+            else
+                echo -e "\033[0;33m⚠ API 连接成功，但模型响应异常\033[0m"
+            fi
+        else
+            echo -e "\033[1;31m✗ API 连接失败\033[0m"
+            echo -e "\033[0;33m请检查:\033[0m"
+            echo -e "\033[0;37m  1. API Key 是否正确\033[0m"
+            echo -e "\033[0;37m  2. 模型名称是否正确\033[0m"
+            echo -e "\033[0;37m  3. 网络连接是否正常\033[0m"
+        fi
+        
+        echo ""
         echo -e "\033[0;37m现在运行: \033[1;32mcc hello\033[0m"
         exit 0
     fi
