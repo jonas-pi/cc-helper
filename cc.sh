@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="0.2.0"
+VERSION="0.2.1"
 
 # 配置文件路径
 CONFIG_FILE="$HOME/.cc_config"
@@ -141,7 +141,7 @@ ${query}
     # 注意：流式传输仅在休息模式下启用（工作模式需要完整命令）
     if [ "$STREAM" = "true" ] && [ "$MODE" = "rest" ]; then
         # 流式传输模式
-        local full_response=""
+        local temp_file=$(mktemp)
         local curl_cmd
         
         if [ -n "$API_KEY" ]; then
@@ -160,8 +160,8 @@ ${query}
                 -d '$json_data'"
         fi
         
-        # 处理流式响应
-        eval $curl_cmd 2>/dev/null | while IFS= read -r line; do
+        # 处理流式响应（使用临时文件避免子shell问题）
+        while IFS= read -r line; do
             # 解析 SSE 格式：data: {...}
             if [[ "$line" =~ ^data:\ (.+)$ ]]; then
                 local json_chunk="${BASH_REMATCH[1]}"
@@ -177,12 +177,17 @@ ${query}
                 if [ -n "$content" ] && [ "$content" != "null" ]; then
                     # 逐字输出（灰色显示）
                     echo -ne "\033[0;90m$content\033[0m"
-                    full_response+="$content"
+                    # 保存到临时文件
+                    echo -n "$content" >> "$temp_file"
                 fi
             fi
-        done
+        done < <(eval $curl_cmd 2>/dev/null)
         
         echo ""  # 换行
+        
+        # 读取完整响应
+        local full_response=$(cat "$temp_file")
+        rm -f "$temp_file"
         
         if [ -z "$full_response" ]; then
             echo "ERROR: 模型无响应"

@@ -1,5 +1,46 @@
 # CC 命令助手 - 更新日志
 
+## v0.2.1 (2026-01-07) - 修复流式传输 Bug
+
+### 🐛 关键 Bug 修复
+- **修复流式传输 "ERROR: 模型无响应" 问题**
+  - 问题原因：Bash 管道 (`|`) 创建子 shell，导致 `full_response` 变量无法传递到父 shell
+  - 症状：流式内容正常显示，但最后报错 "ERROR: 模型无响应"
+  - 解决方案：
+    * 使用临时文件存储流式响应
+    * 使用进程替换 `< <(cmd)` 代替管道 `| while`
+    * 从临时文件读取完整响应
+    * 自动清理临时文件
+
+### 🔧 技术细节
+**修复前（有 Bug）：**
+```bash
+eval $curl_cmd | while read -r line; do
+    full_response+="$content"  # 在子 shell 中，无法传递到父 shell
+done
+echo "$full_response"  # 仍然为空 → ERROR
+```
+
+**修复后：**
+```bash
+temp_file=$(mktemp)
+while read -r line; do
+    echo -n "$content" >> "$temp_file"  # 写入临时文件
+done < <(eval $curl_cmd)  # 进程替换，避免子 shell
+full_response=$(cat "$temp_file")  # 从文件读取
+rm -f "$temp_file"  # 清理
+echo "$full_response"  # ✓ 正确返回
+```
+
+### ✅ 测试结果
+```bash
+cc -stream        # 开启流式传输
+cc -r             # 休息模式
+cc 你好           # ✓ 逐字显示 + 正常返回，无错误
+```
+
+---
+
 ## v0.2.0 (2026-01-07) - 流式传输支持
 
 ### ✨ 重大新功能：流式传输
