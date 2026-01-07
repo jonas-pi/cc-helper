@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="0.2.1"
+VERSION="0.2.2"
 
 # 配置文件路径
 CONFIG_FILE="$HOME/.cc_config"
@@ -16,7 +16,15 @@ STREAM="false"  # true: 流式传输（逐字显示）, false: 一次性返回
 
 # 加载配置文件
 if [ -f "$CONFIG_FILE" ]; then
-    source "$CONFIG_FILE"
+    # 使用 source 加载配置，如果失败则使用默认值
+    if ! source "$CONFIG_FILE" 2>/dev/null; then
+        echo -e "\033[1;33m警告: 配置文件加载失败，使用默认设置\033[0m" >&2
+        MODE="work"
+    fi
+    # 确保 MODE 变量有有效值
+    if [ -z "$MODE" ] || [ "$MODE" != "work" ] && [ "$MODE" != "rest" ]; then
+        MODE="work"
+    fi
 fi
 
 # 检测终端编码并选择合适的字符
@@ -109,16 +117,18 @@ ${query}
         system_msg="你是 cc，一个友好的 AI 命令助手。你目前处于休息模式，可以和用户聊天交流。你的主要工作是帮助用户生成命令（工作模式），但现在是休息时间，可以轻松聊天。"
     else
         # 工作模式：只输出命令
-        prompt="将中文需求转换为一条可直接执行的 Linux shell 命令。
+        prompt="将以下中文需求转换为一条可直接执行的 Linux shell 命令。
 只输出命令，不要解释、不要 Markdown、不要占位符。
 如果缺少参数，使用最常见的默认命令。
+
+如果输入不是命令需求（比如问候语、闲聊等），请输出 \"NOT_A_COMMAND\"。
 
 需求：
 ${query}
 
 命令：
 "
-        system_msg="你是 cc，一个 Linux 命令转换助手。只输出命令，不要任何解释。"
+        system_msg="你是 cc，一个 Linux 命令转换助手。如果输入是命令需求，只输出命令，不要任何解释。如果输入不是命令需求（比如问候语或闲聊），输出 'NOT_A_COMMAND'。"
     fi
     
     local json_data=$(jq -n \
@@ -423,11 +433,19 @@ main() {
     if [ "$first_arg" = "-w" ] || [ "$first_arg" = "work" ]; then
         # 更新配置文件中的 MODE
         if [ -f "$CONFIG_FILE" ]; then
-            sed -i 's/^MODE=.*/MODE="work"/' "$CONFIG_FILE"
+            # 使用更健壮的 sed 命令，支持各种格式
+            if grep -q "^MODE=" "$CONFIG_FILE" 2>/dev/null; then
+                sed -i 's/^MODE=.*/MODE="work"/' "$CONFIG_FILE"
+            else
+                # 如果找不到 MODE 设置，添加到文件末尾
+                echo 'MODE="work"' >> "$CONFIG_FILE"
+            fi
         else
             # 如果配置文件不存在，创建它
-            echo 'MODE="work"' >> "$CONFIG_FILE"
+            echo 'MODE="work"' > "$CONFIG_FILE"
         fi
+        # 立即更新当前会话的 MODE 变量
+        MODE="work"
         echo -e "\033[1;36m已切换到工作模式\033[0m \033[0;37m- 专注命令，高效执行\033[0m"
         exit 0
     fi
@@ -436,11 +454,19 @@ main() {
     if [ "$first_arg" = "-r" ] || [ "$first_arg" = "rest" ] || [ "$first_arg" = "chat" ]; then
         # 更新配置文件中的 MODE
         if [ -f "$CONFIG_FILE" ]; then
-            sed -i 's/^MODE=.*/MODE="rest"/' "$CONFIG_FILE"
+            # 使用更健壮的 sed 命令，支持各种格式
+            if grep -q "^MODE=" "$CONFIG_FILE" 2>/dev/null; then
+                sed -i 's/^MODE=.*/MODE="rest"/' "$CONFIG_FILE"
+            else
+                # 如果找不到 MODE 设置，添加到文件末尾
+                echo 'MODE="rest"' >> "$CONFIG_FILE"
+            fi
         else
             # 如果配置文件不存在，创建它
-            echo 'MODE="rest"' >> "$CONFIG_FILE"
+            echo 'MODE="rest"' > "$CONFIG_FILE"
         fi
+        # 立即更新当前会话的 MODE 变量
+        MODE="rest"
         echo -e "\033[1;35m已切换到休息模式\033[0m \033[0;37m- 放松一下，聊聊天吧~\033[0m"
         exit 0
     fi
@@ -965,6 +991,13 @@ EOF
     if [ -z "$cmd" ]; then
         echo -e "\033[1;31mERROR: 空命令\033[0m" >&2
         exit 1
+    fi
+
+    # 检查是否是"非命令"标记
+    if [ "$cmd" = "NOT_A_COMMAND" ] || [ "${cmd#NOT_A_COMMAND}" != "$cmd" ]; then
+        echo -e "\033[1;33m别闹，好好工作。\033[0m"
+        echo -e "\033[0;37m想聊天？用 \033[1;32mcc -r\033[0;37m 切换到休息模式~\033[0m"
+        exit 0
     fi
 
     echo -e "\033[0;37m> $cmd\033[0m"
