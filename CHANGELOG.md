@@ -1,5 +1,33 @@
 # CC 命令助手 - 更新日志
 
+## v0.2.3 (2026-01-07) - 修复 PowerShell 流式传输 Bug
+
+### 🐛 关键 Bug 修复
+- **修复 PowerShell 开启流式传输后导致的 "ERROR: 模型无响应" 问题**
+  - 问题原因：用户运行 `cc -stream` 后，PowerShell 在 API 请求中设置了 `stream: true`，但没有实现流式响应（SSE）的解析逻辑
+  - 症状：开启流式传输后，所有 API 调用都返回 "ERROR: 模型无响应"
+  - 解决方案：
+    * 暂时禁用 PowerShell 的流式传输功能（强制 `stream = false`）
+    * `Invoke-RestMethod` 无法正确解析 Server-Sent Events (SSE) 流式响应
+    * 未来版本将实现完整的流式传输支持
+
+- **调整 NOT_A_COMMAND 检查顺序**
+  - 将非命令检查移到 `Sanitize-Command` 之前
+  - 避免清理函数影响 `NOT_A_COMMAND` 标记的识别
+
+### ✨ 改进
+- **改进工作模式提示词**
+  - 更明确地要求模型判断输入是否为命令需求
+  - 提供具体示例（"你好"、"谢谢"等是非命令输入）
+  - 强调非命令输入只输出 `NOT_A_COMMAND`，不要其他内容
+
+### 📝 说明
+- PowerShell 版本的流式传输功能正在开发中
+- 当前版本 `cc -stream` 命令在 PowerShell 上不会生效
+- Linux/Bash 版本的流式传输功能正常工作
+
+---
+
 ## v0.2.2 (2026-01-07) - 修复模式切换和命令识别
 
 ### 🐛 关键 Bug 修复
