@@ -5,6 +5,23 @@ $OLLAMA_URL = "http://127.0.0.1:11434/v1"
 $MODEL = "phi3.5"
 $MODE = "work"  # work: 工作模式（只输出命令）, rest: 休息模式（可以聊天）
 
+# 检测控制台编码并选择合适的字符
+$consoleEncoding = [Console]::OutputEncoding
+$isGBK = ($consoleEncoding.CodePage -eq 936)
+
+# 根据编码选择字符
+if ($isGBK) {
+    # GBK 编码：使用 ASCII 兼容字符
+    $EMOJI_HELLO = "^_^"
+    $BULLET = "-"
+    $BULLET_CURRENT = "*"
+} else {
+    # UTF-8 编码：使用可爱的 Unicode 字符
+    $EMOJI_HELLO = "(｡･ω･｡)"
+    $BULLET = "•"
+    $BULLET_CURRENT = "•"
+}
+
 # 检查并自动选择可用模型
 function Check-And-Select-Model {
     # 检查当前配置的模型是否存在
@@ -157,7 +174,7 @@ $firstArg = if ($args.Count -gt 0) { $args[0] } else { "" }
 
 # 预设指令: hello（不依赖模型）
 if ($firstArg -eq "hello") {
-    Write-Host "(｡･ω･｡) cc v1.0" -ForegroundColor Gray
+    Write-Host "$EMOJI_HELLO cc v1.0" -ForegroundColor Gray
     Write-Host ""
     
     # 显示当前模型
@@ -186,10 +203,10 @@ if ($firstArg -eq "hello") {
             Write-Host "已安装的模型:" -ForegroundColor Gray
             foreach ($model in $models) {
                 if ($model -eq $MODEL) {
-                    Write-Host "  • " -NoNewline
+                    Write-Host "  $BULLET_CURRENT " -NoNewline
                     Write-Host "$model" -ForegroundColor Green
                 } else {
-                    Write-Host "  • $model"
+                    Write-Host "  $BULLET $model"
                 }
             }
         }
@@ -459,9 +476,17 @@ if ($firstArg -eq "-del" -or $firstArg -eq "delete" -or $firstArg -eq "rm") {
 
 # 帮助信息
 if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $firstArg -eq "-help" -or $firstArg -eq "help") {
-    Write-Host "╔════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║         CC 命令助手 - 使用指南          ║" -ForegroundColor Cyan
-    Write-Host "╚════════════════════════════════════════════╝" -ForegroundColor Cyan
+    if ($isGBK) {
+        # GBK 编码：使用简单边框
+        Write-Host "============================================" -ForegroundColor Cyan
+        Write-Host "         CC 命令助手 - 使用指南          " -ForegroundColor Cyan
+        Write-Host "============================================" -ForegroundColor Cyan
+    } else {
+        # UTF-8 编码：使用漂亮的边框
+        Write-Host "╔════════════════════════════════════════════╗" -ForegroundColor Cyan
+        Write-Host "║         CC 命令助手 - 使用指南          ║" -ForegroundColor Cyan
+        Write-Host "╚════════════════════════════════════════════╝" -ForegroundColor Cyan
+    }
     Write-Host ""
     Write-Host "基本用法:" -ForegroundColor Yellow
     Write-Host "  cc <中文需求>" -ForegroundColor Gray
