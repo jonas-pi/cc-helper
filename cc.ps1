@@ -1,7 +1,7 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "2.0.2"
+$VERSION = "0.9.0"
 
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
@@ -50,13 +50,13 @@ if ($isGBK) {
 # 检查并自动选择可用模型
 function Check-And-Select-Model {
     # 如果不是 Ollama，跳过模型检查
-    if ($API_TYPE -ne "ollama") {
+    if ($script:API_TYPE -ne "ollama") {
         return $true
     }
     
     # 检查当前配置的模型是否存在
     $modelList = ollama list 2>$null
-    if ($modelList -and $modelList -match [regex]::Escape($MODEL)) {
+    if ($modelList -and $modelList -match [regex]::Escape($script:MODEL)) {
         return $true
     }
     
@@ -209,10 +209,18 @@ PowerShell Command:
 
         if ($response.choices -and $response.choices.Count -gt 0 -and $response.choices[0].message.content) {
             $content = $response.choices[0].message.content
-            if ($content -is [string]) {
-                $content = $content.Trim()
-            } else {
-                $content = $content.ToString().Trim()
+            
+            # 确保 content 是字符串
+            if ($content -is [array]) {
+                $content = $content -join " "
+            } elseif ($content -isnot [string]) {
+                $content = $content.ToString()
+            }
+            
+            # 清理并返回
+            $content = $content.Trim()
+            if ([string]::IsNullOrWhiteSpace($content)) {
+                return "ERROR: 模型返回空内容"
             }
             
             return $content
@@ -1032,45 +1040,21 @@ if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $fir
         Write-Host "╚════════════════════════════════════════════╝" -ForegroundColor Cyan
     }
     Write-Host ""
-    Write-Host "基本用法:" -ForegroundColor Yellow
-    Write-Host "  cc <中文需求>" -ForegroundColor Gray
-    Write-Host "  示例: " -NoNewline; Write-Host "cc 我在哪个目录" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "预设指令:" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "  信息查询" -ForegroundColor Magenta
-    Write-Host "    " -NoNewline; Write-Host "cc hello" -ForegroundColor Green -NoNewline; Write-Host "        显示版本和配置信息"
-    Write-Host "    " -NoNewline; Write-Host "cc list" -ForegroundColor Green -NoNewline; Write-Host "         列出所有可用模型"
-    Write-Host "    " -NoNewline; Write-Host "cc testapi" -ForegroundColor Green -NoNewline; Write-Host "      测试 API 连接状态"
-    Write-Host "    " -NoNewline; Write-Host "cc -h, --help" -ForegroundColor Green -NoNewline; Write-Host "   显示此帮助信息"
-    Write-Host ""
-    Write-Host "  模式切换" -ForegroundColor Magenta
-    Write-Host "    " -NoNewline; Write-Host "cc -w" -ForegroundColor Green -NoNewline; Write-Host "           工作模式（命令助手，只输出命令）"
-    Write-Host "    " -NoNewline; Write-Host "cc -r" -ForegroundColor Green -NoNewline; Write-Host "           休息模式（聊天模式，可以对话）"
-    Write-Host "    " -NoNewline; Write-Host "cc -shell" -ForegroundColor Green -NoNewline; Write-Host "       切换目标 Shell（PowerShell/CMD）"
-    Write-Host ""
-    Write-Host "  API 配置" -ForegroundColor Magenta
-    Write-Host "    " -NoNewline; Write-Host "cc -config" -ForegroundColor Green -NoNewline; Write-Host "      配置 AI API（Ollama/OpenAI/DeepSeek/豆包/通义千问等）"
-    Write-Host ""
-    Write-Host "  模型管理" -ForegroundColor Magenta
-    Write-Host "    " -NoNewline; Write-Host "cc -change" -ForegroundColor Green -NoNewline; Write-Host "      切换使用的模型"
-    Write-Host "    " -NoNewline; Write-Host "cc -add" -ForegroundColor Green -NoNewline; Write-Host "         安装新模型（仅 Ollama）"
-    Write-Host "    " -NoNewline; Write-Host "cc -del" -ForegroundColor Green -NoNewline; Write-Host "         删除已安装的模型（仅 Ollama）"
-    Write-Host ""
-    Write-Host "  更新维护" -ForegroundColor Magenta
-    Write-Host "    " -NoNewline; Write-Host "cc -u" -ForegroundColor Green -NoNewline; Write-Host "           更新 cc 脚本到最新版本"
-    Write-Host ""
-    Write-Host "使用示例:" -ForegroundColor Yellow
-    Write-Host "  工作模式: " -NoNewline; Write-Host "cc 查看磁盘使用情况" -ForegroundColor Green
-    Write-Host "  休息模式: " -NoNewline; Write-Host "cc 今天天气怎么样？" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "提示: 运行 " -NoNewline -ForegroundColor Gray
-    Write-Host "cc hello" -NoNewline -ForegroundColor Green
-    Write-Host " 查看当前配置" -ForegroundColor Gray
+    Write-Host "cc hello" -NoNewline -ForegroundColor Green; Write-Host "       " -NoNewline; Write-Host "cc list" -NoNewline -ForegroundColor Green; Write-Host "        " -NoNewline; Write-Host "cc testapi" -ForegroundColor Green
+    Write-Host "cc -w" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -r" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -config" -ForegroundColor Green
+    Write-Host "cc -change" -NoNewline -ForegroundColor Green; Write-Host "     " -NoNewline; Write-Host "cc -add" -NoNewline -ForegroundColor Green; Write-Host "        " -NoNewline; Write-Host "cc -del" -ForegroundColor Green
+    Write-Host "cc -shell" -NoNewline -ForegroundColor Green; Write-Host "      " -NoNewline; Write-Host "cc -u" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -h" -ForegroundColor Green
     exit 0
 }
 
-$userQuery = $args -join " "
+# 获取用户输入（确保正确处理参数）
+$userQuery = if ($args.Count -eq 1 -and $args[0] -is [string]) {
+    $args[0]
+} elseif ($args.Count -gt 0) {
+    $args -join " "
+} else {
+    ""
+}
 
 # 检查并选择可用模型
 if (-not (Check-And-Select-Model)) {

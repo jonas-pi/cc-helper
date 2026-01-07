@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="2.0.2"
+VERSION="0.9.0"
 
 # 配置文件路径
 CONFIG_FILE="$HOME/.cc_config"
@@ -730,38 +730,10 @@ EOF
         echo -e "\033[1;36m$BOX_MID\033[0m"
         echo -e "\033[1;36m$BOX_BOT\033[0m"
         echo ""
-        echo -e "\033[1;33m基本用法:\033[0m"
-        echo -e "  \033[0;37mcc <中文需求>\033[0m"
-        echo -e "  示例: \033[0;32mcc 查看当前目录\033[0m"
-        echo ""
-        echo -e "\033[1;33m预设指令:\033[0m"
-        echo ""
-        echo -e "  \033[1;35m信息查询\033[0m"
-        echo -e "    \033[0;32mcc hello\033[0m        显示版本和配置信息"
-        echo -e "    \033[0;32mcc list\033[0m         列出所有可用模型"
-        echo -e "    \033[0;32mcc testapi\033[0m      测试 API 连接状态"
-        echo -e "    \033[0;32mcc -h, --help\033[0m   显示此帮助信息"
-        echo ""
-        echo -e "  \033[1;35m模式切换\033[0m"
-        echo -e "    \033[0;32mcc -w\033[0m           工作模式（命令助手，只输出命令）"
-        echo -e "    \033[0;32mcc -r\033[0m           休息模式（聊天模式，可以对话）"
-        echo ""
-        echo -e "  \033[1;35mAPI 配置\033[0m"
-        echo -e "    \033[0;32mcc -config\033[0m      配置 AI API（Ollama/OpenAI/DeepSeek/豆包/通义千问等）"
-        echo ""
-        echo -e "  \033[1;35m模型管理\033[0m"
-        echo -e "    \033[0;32mcc -change\033[0m      切换使用的模型"
-        echo -e "    \033[0;32mcc -add\033[0m         安装新模型（仅 Ollama）"
-        echo -e "    \033[0;32mcc -del\033[0m         删除已安装的模型（仅 Ollama）"
-        echo ""
-        echo -e "  \033[1;35m更新维护\033[0m"
-        echo -e "    \033[0;32mcc -u\033[0m           更新 cc 脚本到最新版本"
-        echo ""
-        echo -e "\033[1;33m使用示例:\033[0m"
-        echo -e "  工作模式: \033[0;32mcc 查看磁盘使用情况\033[0m"
-        echo -e "  休息模式: \033[0;32mcc 今天天气怎么样？\033[0m"
-        echo ""
-        echo -e "\033[0;37m提示: 运行 \033[1;32mcc hello\033[0;37m 查看当前配置\033[0m"
+        echo -e "\033[0;32mcc hello\033[0m       \033[0;32mcc list\033[0m        \033[0;32mcc testapi\033[0m"
+        echo -e "\033[0;32mcc -w\033[0m          \033[0;32mcc -r\033[0m          \033[0;32mcc -config\033[0m"
+        echo -e "\033[0;32mcc -change\033[0m     \033[0;32mcc -add\033[0m        \033[0;32mcc -del\033[0m"
+        echo -e "\033[0;32mcc -u\033[0m          \033[0;32mcc -h\033[0m"
         exit 0
     fi
 
