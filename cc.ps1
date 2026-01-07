@@ -231,89 +231,47 @@ if ($args.Count -lt 1) {
 # 处理预设指令
 $firstArg = $args[0].ToLower()
 
-# 预设指令 1: hello - 显示欢迎信息
-if ($firstArg -eq "hello") {
-    Write-Host ""
-    Write-Host "╔════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║                                                                ║" -ForegroundColor Cyan
-    Write-Host "║                    欢迎使用 cc 命令助手！                       ║" -ForegroundColor Cyan
-    Write-Host "║                                                                ║" -ForegroundColor Cyan
-    Write-Host "║              AI-Powered Command Assistant                      ║" -ForegroundColor Cyan
-    Write-Host "║                                                                ║" -ForegroundColor Cyan
-    Write-Host "╚════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "✓ 安装正常！" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "当前配置：" -ForegroundColor Yellow
-    Write-Host "  模型: $MODEL" -ForegroundColor Gray
-    Write-Host "  服务: $OLLAMA_URL" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "使用示例：" -ForegroundColor Yellow
-    Write-Host "  cc 查看当前目录" -ForegroundColor White
-    Write-Host "  cc 列出所有文件" -ForegroundColor White
-    Write-Host "  cc 查看进程" -ForegroundColor White
-    Write-Host ""
-    Write-Host "更多帮助：" -ForegroundColor Yellow
-    Write-Host "  cc -u       更新脚本" -ForegroundColor White
-    Write-Host ""
-    exit 0
-}
+    # 预设指令 1: hello - 显示欢迎信息
+    if ($firstArg -eq "hello") {
+        Write-Host "cc v1.0 | $MODEL" -ForegroundColor DarkGray
+        exit 0
+    }
 
-# 预设指令 2: -u/update - 更新脚本
-if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") {
-    Write-Host ""
-    Write-Host "正在更新 cc 脚本..." -ForegroundColor Yellow
-    Write-Host ""
-    
-    $updateUrl = "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.ps1"
-    $scriptPath = $PSCommandPath
-    
-    if (-not $scriptPath) {
-        $scriptPath = "$env:USERPROFILE\cc.ps1"
-    }
-    
-    try {
-        Write-Host "下载最新版本..." -ForegroundColor Gray
-        $webClient = New-Object System.Net.WebClient
-        $webClient.Encoding = [System.Text.Encoding]::UTF8
-        $content = $webClient.DownloadString($updateUrl)
+    # 预设指令 2: -u/update - 更新脚本
+    if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") {
+        $updateUrl = "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.ps1"
+        $scriptPath = $PSCommandPath
         
-        # 备份当前版本
-        $backupPath = "$scriptPath.backup"
-        if (Test-Path $scriptPath) {
-            Copy-Item -Path $scriptPath -Destination $backupPath -Force
-            Write-Host "✓ 已备份当前版本到: $backupPath" -ForegroundColor Green
+        if (-not $scriptPath) {
+            $scriptPath = "$env:USERPROFILE\cc.ps1"
         }
         
-        # 保存新版本（根据控制台编码）
-        $currentEncoding = [Console]::OutputEncoding
-        if ($currentEncoding.CodePage -eq 936) {
-            # GBK 编码
-            $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
-        } else {
-            # UTF-8 with BOM
-            $saveEncoding = New-Object System.Text.UTF8Encoding $true
+        try {
+            $webClient = New-Object System.Net.WebClient
+            $webClient.Encoding = [System.Text.Encoding]::UTF8
+            $content = $webClient.DownloadString($updateUrl)
+            
+            # 备份
+            if (Test-Path $scriptPath) {
+                Copy-Item -Path $scriptPath -Destination "$scriptPath.backup" -Force
+            }
+            
+            # 保存
+            $currentEncoding = [Console]::OutputEncoding
+            if ($currentEncoding.CodePage -eq 936) {
+                $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+            } else {
+                $saveEncoding = New-Object System.Text.UTF8Encoding $true
+            }
+            
+            [System.IO.File]::WriteAllText($scriptPath, $content, $saveEncoding)
+            Write-Host "updated" -ForegroundColor DarkGray
+        } catch {
+            Write-Host "failed: $($_.Exception.Message)" -ForegroundColor Red
+            exit 1
         }
-        
-        [System.IO.File]::WriteAllText($scriptPath, $content, $saveEncoding)
-        
-        Write-Host "✓ 更新成功！" -ForegroundColor Green
-        Write-Host ""
-        Write-Host "已更新到最新版本：$scriptPath" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "测试更新：" -ForegroundColor Yellow
-        Write-Host "  cc hello" -ForegroundColor White
-        Write-Host ""
-    } catch {
-        Write-Host "✗ 更新失败: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Host ""
-        Write-Host "请尝试手动更新：" -ForegroundColor Yellow
-        Write-Host "  irm https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.ps1 -OutFile `$env:USERPROFILE\cc.ps1" -ForegroundColor White
-        Write-Host ""
-        exit 1
+        exit 0
     }
-    exit 0
-}
 
 $userQuery = $args -join " "
 
@@ -412,17 +370,12 @@ if ([string]::IsNullOrWhiteSpace($cmd) -or $cmd -eq "ENCODING_ERROR" -or $cmd -m
     exit 1
 }
 
-Write-Host ""
-Write-Host "> AI 建议: $cmd" -ForegroundColor Green
-Write-Host ""
+Write-Host "> $cmd" -ForegroundColor DarkGray
 
-$confirm = Read-Host "确认执行该命令吗？(y/Enter 执行, n 退出)"
+$confirm = Read-Host "[y/n]"
 if ([string]::IsNullOrWhiteSpace($confirm) -or $confirm -eq "y" -or $confirm -eq "yes") {
-    Write-Host ""
-    Write-Host "正在执行: $cmd" -ForegroundColor Yellow
-    Write-Host ""
     Invoke-Expression $cmd
 } else {
-    Write-Host "已取消执行。"
+    exit 0
 }
 

@@ -261,64 +261,25 @@ main() {
     
     # 预设指令 1: hello - 显示欢迎信息
     if [ "$first_arg" = "hello" ]; then
-        echo ""
-        echo -e "\033[1;36m╔════════════════════════════════════════════════════════════════╗\033[0m"
-        echo -e "\033[1;36m║                                                                ║\033[0m"
-        echo -e "\033[1;36m║                    欢迎使用 cc 命令助手！                       ║\033[0m"
-        echo -e "\033[1;36m║                                                                ║\033[0m"
-        echo -e "\033[1;36m║              AI-Powered Command Assistant                      ║\033[0m"
-        echo -e "\033[1;36m║                                                                ║\033[0m"
-        echo -e "\033[1;36m╚════════════════════════════════════════════════════════════════╝\033[0m"
-        echo ""
-        echo -e "\033[1;32m✓ 安装正常！\033[0m"
-        echo ""
-        echo -e "\033[1;33m当前配置：\033[0m"
-        echo -e "  模型: $MODEL"
-        echo -e "  服务: $OLLAMA_URL"
-        echo ""
-        echo -e "\033[1;33m使用示例：\033[0m"
-        echo "  cc 查看当前目录"
-        echo "  cc 列出所有文件"
-        echo "  cc 查看进程"
-        echo ""
-        echo -e "\033[1;33m更多帮助：\033[0m"
-        echo "  cc -u       更新脚本"
-        echo ""
+        echo -e "\033[0;37mcc v1.0 | $MODEL\033[0m"
         exit 0
     fi
     
     # 预设指令 2: -u/update - 更新脚本
     if [ "$first_arg" = "-u" ] || [ "$first_arg" = "update" ] || [ "$first_arg" = "--update" ]; then
-        echo ""
-        echo -e "\033[1;33m正在更新 cc 脚本...\033[0m"
-        echo ""
-        
         local update_url="https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.sh"
         local script_path="$HOME/cc.sh"
         
-        echo -e "\033[0;37m下载最新版本...\033[0m"
-        
-        # 备份当前版本
+        # 备份
         if [ -f "$script_path" ]; then
-            cp "$script_path" "${script_path}.backup"
-            echo -e "\033[1;32m✓ 已备份当前版本到: ${script_path}.backup\033[0m"
+            cp "$script_path" "${script_path}.backup" 2>/dev/null
         fi
         
-        # 下载并执行安装脚本（只更新 cc.sh）
-        if curl -fsSL "$update_url" | bash -s -- --update-only; then
-            echo -e "\033[1;32m✓ 更新成功！\033[0m"
-            echo ""
-            echo -e "\033[1;36m已更新到最新版本：$script_path\033[0m"
-            echo ""
-            echo -e "\033[1;33m测试更新：\033[0m"
-            echo "  cc hello"
-            echo ""
+        # 下载
+        if curl -fsSL "$update_url" | bash -s -- --update-only 2>/dev/null; then
+            echo -e "\033[0;37mupdated\033[0m"
         else
-            echo -e "\033[1;31m✗ 更新失败\033[0m"
-            echo ""
-            echo -e "\033[1;33m请尝试手动更新：\033[0m"
-            echo "  curl -fsSL https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.sh | bash"
-            echo ""
+            echo -e "\033[1;31mfailed\033[0m"
             exit 1
         fi
         exit 0
@@ -340,15 +301,12 @@ main() {
         exit 1
     fi
 
-    echo -e "\n${GREEN}> AI 建议:${NC} $cmd"
+    echo -e "\033[0;37m> $cmd\033[0m"
 
-    echo -ne "${YELLOW}确认执行该命令吗？(y/Enter 执行, n 退出): ${NC}"
+    echo -ne "[y/n] "
     read -r confirm
     if [ -z "$confirm" ] || [ "$confirm" = "y" ] || [ "$confirm" = "yes" ]; then
-        echo -e "\n正在执行: $cmd\n"
         eval "$cmd"
-    else
-        echo "已取消执行。"
     fi
 }
 
