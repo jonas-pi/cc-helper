@@ -717,18 +717,11 @@ if ($firstArg -eq "-fix" -or $firstArg -eq "fix" -or $firstArg -eq "-fix-encodin
                 Copy-Item $outputPath "$outputPath.backup" -Force | Out-Null
             }
             
-            # 下载内容
+            # 下载内容并始终使用 UTF-8 with BOM 保存
             $webClient = New-Object System.Net.WebClient
             $webClient.Encoding = [System.Text.Encoding]::UTF8
             $content = $webClient.DownloadString($updateUrl)
-            
-            # 根据控制台编码保存
-            $currentEncoding = [Console]::OutputEncoding
-            if ($currentEncoding.CodePage -eq 936) {
-                $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
-            } else {
-                $saveEncoding = New-Object System.Text.UTF8Encoding $true
-            }
+            $saveEncoding = New-Object System.Text.UTF8Encoding $true
             [System.IO.File]::WriteAllText($outputPath, $content, $saveEncoding)
             
             Write-Host ""
@@ -854,15 +847,8 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
         # 下载主脚本
         $content = $webClient.DownloadString($url)
         
-        # 根据控制台编码选择保存编码
-        $currentEncoding = [Console]::OutputEncoding
-        $saveEncoding = $null
-        if ($currentEncoding.CodePage -eq 936) { # GBK/GB2312
-            $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
-        } else { # UTF-8 with BOM
-            $saveEncoding = New-Object System.Text.UTF8Encoding $true
-        }
-        
+        # 主脚本始终使用 UTF-8 with BOM 保存（PowerShell 能正确识别）
+        $saveEncoding = New-Object System.Text.UTF8Encoding $true
         [System.IO.File]::WriteAllText($outputPath, $content, $saveEncoding)
         Write-Host "✓ 主脚本更新完成" -ForegroundColor Green
         
@@ -908,14 +894,9 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
                 Copy-Item $outputPath "$outputPath.backup" -Force | Out-Null
             }
             
+            # 下载内容并始终使用 UTF-8 with BOM 保存
             $content = $webClient.DownloadString($url)
-            $currentEncoding = [Console]::OutputEncoding
-            if ($currentEncoding.CodePage -eq 936) {
-                $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
-            } else {
-                $saveEncoding = New-Object System.Text.UTF8Encoding $true
-            }
-            
+            $saveEncoding = New-Object System.Text.UTF8Encoding $true
             [System.IO.File]::WriteAllText($outputPath, $content, $saveEncoding)
             Write-Host "✓ 更新完成" -ForegroundColor Green
         } catch {
