@@ -1,7 +1,7 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "0.1.5"
+$VERSION = "0.2.0"
 
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
@@ -13,6 +13,7 @@ $MODE = "work"  # work: 工作模式（只输出命令）, rest: 休息模式（
 $API_TYPE = "ollama"  # ollama, openai, anthropic, custom
 $API_KEY = ""  # API 密钥（如果需要）
 $TARGET_SHELL = "powershell"  # powershell 或 cmd
+$STREAM = $false  # true: 流式传输（逐字显示）, false: 一次性返回
 
 # 加载配置文件
 if (Test-Path $CONFIG_FILE) {
@@ -172,6 +173,7 @@ PowerShell Command:
     }
     
     # 构建 JSON
+    $useStream = ($STREAM -and $MODE -eq "rest")
     $jsonBody = @{
         model = $MODEL
         messages = @(
@@ -186,6 +188,7 @@ PowerShell Command:
         )
         temperature = 0.1
         max_tokens = 64
+        stream = $useStream
     } | ConvertTo-Json -Depth 10
 
     # 调用 API
@@ -273,6 +276,16 @@ if ($firstArg -eq "hello") {
         Write-Host "CMD" -ForegroundColor Yellow
     } else {
         Write-Host "PowerShell" -ForegroundColor Blue
+    }
+    
+    # 显示流式传输状态
+    Write-Host "流式传输: " -NoNewline -ForegroundColor Gray
+    if ($STREAM) {
+        Write-Host "开启" -NoNewline -ForegroundColor Green
+        Write-Host " (逐字显示)" -ForegroundColor DarkGray
+    } else {
+        Write-Host "关闭" -NoNewline -ForegroundColor DarkGray
+        Write-Host " (一次性显示)" -ForegroundColor DarkGray
     }
     
     Write-Host ""
@@ -520,6 +533,44 @@ if ($firstArg -eq "-r" -or $firstArg -eq "rest" -or $firstArg -eq "chat") {
     
     Write-Host "已切换到休息模式" -ForegroundColor Magenta -NoNewline
     Write-Host " - 放松一下，聊聊天吧~" -ForegroundColor Gray
+    exit 0
+}
+
+# 预设指令: -stream 切换流式传输
+if ($firstArg -eq "-stream" -or $firstArg -eq "stream") {
+    # 切换流式传输状态
+    $newStream = -not $STREAM
+    $statusText = if ($newStream) { "已开启流式传输" } else { "已关闭流式传输" }
+    $descText = if ($newStream) { "响应将逐字显示（仅休息模式有效）" } else { "响应将一次性显示" }
+    
+    # 更新配置文件
+    if (Test-Path $CONFIG_FILE) {
+        $content = Get-Content $CONFIG_FILE -Raw
+        if ($content -match '^\$STREAM = ') {
+            $content = $content -replace '^\$STREAM = .*', "`$STREAM = `$$newStream"
+        } else {
+            $content += "`n`$STREAM = `$$newStream"
+        }
+        
+        $currentEncoding = [Console]::OutputEncoding
+        if ($currentEncoding.CodePage -eq 936) {
+            $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+        } else {
+            $saveEncoding = New-Object System.Text.UTF8Encoding $true
+        }
+        [System.IO.File]::WriteAllText($CONFIG_FILE, $content, $saveEncoding)
+    } else {
+        "`$STREAM = `$$newStream" | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
+    }
+    
+    Write-Host "$statusText" -ForegroundColor Cyan -NoNewline
+    Write-Host " - $descText" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "注意: 流式传输仅在休息模式 (cc -r) 下生效" -ForegroundColor DarkGray
+    Write-Host "工作模式需要完整命令，不支持流式传输" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "提示: PowerShell 版本的流式传输功能正在开发中" -ForegroundColor Yellow
+    Write-Host "      当前版本将在后台启用流式API，但显示仍为一次性输出" -ForegroundColor Yellow
     exit 0
 }
 
@@ -1196,10 +1247,10 @@ if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $fir
     }
     Write-Host ""
     Write-Host "cc hello" -NoNewline -ForegroundColor Green; Write-Host "       " -NoNewline; Write-Host "cc list" -NoNewline -ForegroundColor Green; Write-Host "        " -NoNewline; Write-Host "cc testapi" -ForegroundColor Green
-    Write-Host "cc -w" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -r" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -config" -ForegroundColor Green
-    Write-Host "cc -change" -NoNewline -ForegroundColor Green; Write-Host "     " -NoNewline; Write-Host "cc -add" -NoNewline -ForegroundColor Green; Write-Host "        " -NoNewline; Write-Host "cc -del" -ForegroundColor Green
-    Write-Host "cc -shell" -NoNewline -ForegroundColor Green; Write-Host "      " -NoNewline; Write-Host "cc -fix" -NoNewline -ForegroundColor Green; Write-Host "         " -NoNewline; Write-Host "cc -u" -ForegroundColor Green
-    Write-Host "cc -h" -ForegroundColor Green
+    Write-Host "cc -w" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -r" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -stream" -ForegroundColor Green
+    Write-Host "cc -config" -NoNewline -ForegroundColor Green; Write-Host "     " -NoNewline; Write-Host "cc -change" -NoNewline -ForegroundColor Green; Write-Host "     " -NoNewline; Write-Host "cc -add" -ForegroundColor Green
+    Write-Host "cc -del" -NoNewline -ForegroundColor Green; Write-Host "        " -NoNewline; Write-Host "cc -shell" -NoNewline -ForegroundColor Green; Write-Host "      " -NoNewline; Write-Host "cc -fix" -ForegroundColor Green
+    Write-Host "cc -u" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -h" -ForegroundColor Green
     exit 0
 }
 

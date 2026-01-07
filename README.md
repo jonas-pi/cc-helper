@@ -116,6 +116,7 @@ cc 列出所有进程          # 生成: tasklist
 | `cc -u` | 更新到最新版本（带版本对比） |
 | `cc -w` | 切换到工作模式（命令助手） |
 | `cc -r` | 切换到休息模式（聊天） |
+| `cc -stream` | 切换流式传输（逐字显示/一次性显示） |
 | `cc -shell` | 切换目标 Shell（Windows：PowerShell/CMD） |
 | `cc -change` | 切换使用的模型 |
 | `cc -add` | 安装新模型 |

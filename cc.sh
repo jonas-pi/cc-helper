@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="0.1.5"
+VERSION="0.2.0"
 
 # 配置文件路径
 CONFIG_FILE="$HOME/.cc_config"
@@ -12,6 +12,7 @@ MODEL="qwen2.5:1.5b"
 MODE="work"  # work: 工作模式（只输出命令）, rest: 休息模式（可以聊天）
 API_TYPE="ollama"  # ollama, openai, anthropic, custom
 API_KEY=""  # API 密钥（如果需要）
+STREAM="false"  # true: 流式传输（逐字显示）, false: 一次性返回
 
 # 加载配置文件
 if [ -f "$CONFIG_FILE" ]; then
@@ -124,6 +125,7 @@ ${query}
         --arg model "$MODEL" \
         --arg system "$system_msg" \
         --arg prompt "$prompt" \
+        --argjson stream "$( [ "$STREAM" = "true" ] && echo true || echo false )" \
         '{
             model: $model,
             messages: [
@@ -131,41 +133,98 @@ ${query}
                 {role: "user", content: $prompt}
             ],
             temperature: 0,
-            max_tokens: 64
+            max_tokens: 64,
+            stream: $stream
         }')
 
-    # 发送 API 请求（性能优化：使用 --compressed 启用压缩，--http2 使用 HTTP/2）
-    local response
-    if [ -n "$API_KEY" ]; then
-        response=$(curl -s --compressed -X POST "${OLLAMA_URL}/chat/completions" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $API_KEY" \
-            -d "$json_data" 2>&1)
-    elif [ "$API_TYPE" = "ollama" ]; then
-        response=$(curl -s --compressed -X POST "${OLLAMA_URL}/chat/completions" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ollama" \
-            -d "$json_data" 2>&1)
+    # 发送 API 请求
+    # 注意：流式传输仅在休息模式下启用（工作模式需要完整命令）
+    if [ "$STREAM" = "true" ] && [ "$MODE" = "rest" ]; then
+        # 流式传输模式
+        local full_response=""
+        local curl_cmd
+        
+        if [ -n "$API_KEY" ]; then
+            curl_cmd="curl -N --no-buffer -s -X POST \"${OLLAMA_URL}/chat/completions\" \
+                -H \"Content-Type: application/json\" \
+                -H \"Authorization: Bearer $API_KEY\" \
+                -d '$json_data'"
+        elif [ "$API_TYPE" = "ollama" ]; then
+            curl_cmd="curl -N --no-buffer -s -X POST \"${OLLAMA_URL}/chat/completions\" \
+                -H \"Content-Type: application/json\" \
+                -H \"Authorization: Bearer ollama\" \
+                -d '$json_data'"
+        else
+            curl_cmd="curl -N --no-buffer -s -X POST \"${OLLAMA_URL}/chat/completions\" \
+                -H \"Content-Type: application/json\" \
+                -d '$json_data'"
+        fi
+        
+        # 处理流式响应
+        eval $curl_cmd 2>/dev/null | while IFS= read -r line; do
+            # 解析 SSE 格式：data: {...}
+            if [[ "$line" =~ ^data:\ (.+)$ ]]; then
+                local json_chunk="${BASH_REMATCH[1]}"
+                
+                # 检查是否结束
+                if [ "$json_chunk" = "[DONE]" ]; then
+                    break
+                fi
+                
+                # 提取 delta.content
+                local content=$(echo "$json_chunk" | jq -r '.choices[0].delta.content // empty' 2>/dev/null)
+                
+                if [ -n "$content" ] && [ "$content" != "null" ]; then
+                    # 逐字输出（灰色显示）
+                    echo -ne "\033[0;90m$content\033[0m"
+                    full_response+="$content"
+                fi
+            fi
+        done
+        
+        echo ""  # 换行
+        
+        if [ -z "$full_response" ]; then
+            echo "ERROR: 模型无响应"
+            return 1
+        fi
+        
+        echo "$full_response"
+        return 0
     else
-        response=$(curl -s --compressed -X POST "${OLLAMA_URL}/chat/completions" \
-            -H "Content-Type: application/json" \
-            -d "$json_data" 2>&1)
-    fi
+        # 非流式模式（原有逻辑）
+        local response
+        if [ -n "$API_KEY" ]; then
+            response=$(curl -s --compressed -X POST "${OLLAMA_URL}/chat/completions" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $API_KEY" \
+                -d "$json_data" 2>&1)
+        elif [ "$API_TYPE" = "ollama" ]; then
+            response=$(curl -s --compressed -X POST "${OLLAMA_URL}/chat/completions" \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer ollama" \
+                -d "$json_data" 2>&1)
+        else
+            response=$(curl -s --compressed -X POST "${OLLAMA_URL}/chat/completions" \
+                -H "Content-Type: application/json" \
+                -d "$json_data" 2>&1)
+        fi
 
-    if [ $? -ne 0 ]; then
-        echo "ERROR: curl 请求失败"
-        return 1
-    fi
+        if [ $? -ne 0 ]; then
+            echo "ERROR: curl 请求失败"
+            return 1
+        fi
 
-    local cmd=$(echo "$response" | jq -r '.choices[0].message.content // empty' 2>/dev/null)
-    
-    if [ -z "$cmd" ] || [ "$cmd" = "null" ]; then
-        echo "ERROR: 模型无响应"
-        return 1
+        local cmd=$(echo "$response" | jq -r '.choices[0].message.content // empty' 2>/dev/null)
+        
+        if [ -z "$cmd" ] || [ "$cmd" = "null" ]; then
+            echo "ERROR: 模型无响应"
+            return 1
+        fi
+        
+        echo "$cmd"
+        return 0
     fi
-    
-    echo "$cmd"
-    return 0
 }
 
 # 主函数
@@ -188,6 +247,13 @@ main() {
             echo -e "\033[0;37m当前模式: \033[1;35m休息模式\033[0m \033[0;37m(可以聊天)\033[0m"
         else
             echo -e "\033[0;37m当前模式: \033[1;36m工作模式\033[0m \033[0;37m(命令助手)\033[0m"
+        fi
+        
+        # 显示流式传输状态
+        if [ "$STREAM" = "true" ]; then
+            echo -e "\033[0;37m流式传输: \033[1;32m开启\033[0m \033[0;90m(逐字显示)\033[0m"
+        else
+            echo -e "\033[0;37m流式传输: \033[0;90m关闭\033[0m \033[0;90m(一次性显示)\033[0m"
         fi
         
         echo ""
@@ -371,6 +437,37 @@ main() {
             echo 'MODE="rest"' >> "$CONFIG_FILE"
         fi
         echo -e "\033[1;35m已切换到休息模式\033[0m \033[0;37m- 放松一下，聊聊天吧~\033[0m"
+        exit 0
+    fi
+    
+    # 预设指令: -stream 切换流式传输
+    if [ "$first_arg" = "-stream" ] || [ "$first_arg" = "stream" ]; then
+        # 切换流式传输状态
+        if [ "$STREAM" = "true" ]; then
+            new_stream="false"
+            status_text="已关闭流式传输"
+            desc_text="响应将一次性显示"
+        else
+            new_stream="true"
+            status_text="已开启流式传输"
+            desc_text="响应将逐字显示（仅休息模式有效）"
+        fi
+        
+        # 更新配置文件
+        if [ -f "$CONFIG_FILE" ]; then
+            if grep -q "^STREAM=" "$CONFIG_FILE"; then
+                sed -i "s/^STREAM=.*/STREAM=\"$new_stream\"/" "$CONFIG_FILE"
+            else
+                echo "STREAM=\"$new_stream\"" >> "$CONFIG_FILE"
+            fi
+        else
+            echo "STREAM=\"$new_stream\"" >> "$CONFIG_FILE"
+        fi
+        
+        echo -e "\033[1;36m$status_text\033[0m \033[0;37m- $desc_text\033[0m"
+        echo ""
+        echo -e "\033[0;90m注意: 流式传输仅在休息模式 (cc -r) 下生效\033[0m"
+        echo -e "\033[0;90m工作模式需要完整命令，不支持流式传输\033[0m"
         exit 0
     fi
     
@@ -831,9 +928,10 @@ EOF
         echo -e "\033[1;36m$BOX_BOT\033[0m"
         echo ""
         echo -e "\033[0;32mcc hello\033[0m       \033[0;32mcc list\033[0m        \033[0;32mcc testapi\033[0m"
-        echo -e "\033[0;32mcc -w\033[0m          \033[0;32mcc -r\033[0m          \033[0;32mcc -config\033[0m"
-        echo -e "\033[0;32mcc -change\033[0m     \033[0;32mcc -add\033[0m        \033[0;32mcc -del\033[0m"
-        echo -e "\033[0;32mcc -fix\033[0m        \033[0;32mcc -u\033[0m          \033[0;32mcc -h\033[0m"
+        echo -e "\033[0;32mcc -w\033[0m          \033[0;32mcc -r\033[0m          \033[0;32mcc -stream\033[0m"
+        echo -e "\033[0;32mcc -config\033[0m     \033[0;32mcc -change\033[0m     \033[0;32mcc -add\033[0m"
+        echo -e "\033[0;32mcc -del\033[0m        \033[0;32mcc -fix\033[0m        \033[0;32mcc -u\033[0m"
+        echo -e "\033[0;32mcc -h\033[0m"
         exit 0
     fi
 
