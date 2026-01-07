@@ -772,12 +772,20 @@ if ($firstArg -eq "-fix" -or $firstArg -eq "fix" -or $firstArg -eq "-fix-encodin
     # 3. 检测 API 连接
     Write-Host "[3/3] API 连接检测" -ForegroundColor Yellow
     if ($script:API_TYPE -eq "ollama") {
-        try {
-            $testResponse = Invoke-WebRequest -Uri "$script:OLLAMA_URL/api/tags" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
-            Write-Host "  ✓ Ollama 服务正常" -ForegroundColor Green
-        } catch {
-            Write-Host "  ✗ Ollama 服务未响应" -ForegroundColor Red
-            $issues += "Ollama 服务未响应"
+        # 先检查进程是否存在
+        $ollamaProcess = Get-Process -Name ollama -ErrorAction SilentlyContinue
+        if (-not $ollamaProcess) {
+            Write-Host "  ✗ Ollama 服务未运行" -ForegroundColor Red
+            $issues += "Ollama 服务未运行"
+        } else {
+            # 进程存在，测试连接
+            try {
+                $testResponse = Invoke-WebRequest -Uri "$script:OLLAMA_URL/api/tags" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+                Write-Host "  ✓ Ollama 服务正常" -ForegroundColor Green
+            } catch {
+                Write-Host "  ✗ Ollama 服务未响应" -ForegroundColor Red
+                $issues += "Ollama 服务未响应"
+            }
         }
     } elseif ($script:API_TYPE) {
         if ($script:MODEL) {
@@ -1551,6 +1559,28 @@ $userQuery = if ($args.Count -eq 1 -and $args[0] -is [string]) {
     $args -join " "
 } else {
     ""
+}
+
+# 如果输入为空，显示帮助信息
+if ([string]::IsNullOrWhiteSpace($userQuery)) {
+    if ($isGBK) {
+        # GBK 编码：使用简单边框
+        Write-Host "============================================" -ForegroundColor Cyan
+        Write-Host "         CC 命令助手 - 使用指南          " -ForegroundColor Cyan
+        Write-Host "============================================" -ForegroundColor Cyan
+    } else {
+        # UTF-8 编码：使用漂亮的边框
+        Write-Host "╔════════════════════════════════════════════╗" -ForegroundColor Cyan
+        Write-Host "║         CC 命令助手 - 使用指南          ║" -ForegroundColor Cyan
+        Write-Host "╚════════════════════════════════════════════╝" -ForegroundColor Cyan
+    }
+    Write-Host ""
+    Write-Host "cc hello" -NoNewline -ForegroundColor Green; Write-Host "       " -NoNewline; Write-Host "cc list" -NoNewline -ForegroundColor Green; Write-Host "        " -NoNewline; Write-Host "cc testapi" -ForegroundColor Green
+    Write-Host "cc -w" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -r" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -stream" -ForegroundColor Green
+    Write-Host "cc -config" -NoNewline -ForegroundColor Green; Write-Host "     " -NoNewline; Write-Host "cc -change" -NoNewline -ForegroundColor Green; Write-Host "     " -NoNewline; Write-Host "cc -add" -ForegroundColor Green
+    Write-Host "cc -del" -NoNewline -ForegroundColor Green; Write-Host "        " -NoNewline; Write-Host "cc -shell" -NoNewline -ForegroundColor Green; Write-Host "      " -NoNewline; Write-Host "cc -fix" -ForegroundColor Green
+    Write-Host "cc -u" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -h" -ForegroundColor Green
+    exit 0
 }
 
 # 检查并选择可用模型
