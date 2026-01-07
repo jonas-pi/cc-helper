@@ -1,7 +1,7 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "0.1.4"
+$VERSION = "0.1.5"
 
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
@@ -603,6 +603,57 @@ if ($firstArg -eq "-fix" -or $firstArg -eq "fix" -or $firstArg -eq "-fix-encodin
         default {
             Write-Host "已取消" -ForegroundColor Gray
         }
+    }
+    
+    Write-Host ""
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Yellow
+    Write-Host "是否要强制更新 cc 到最新版本?" -ForegroundColor Gray
+    Write-Host "(编码修复后建议更新以确保所有功能正常)" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "[y/n] (默认: n): " -NoNewline -ForegroundColor Yellow
+    $updateChoice = Read-Host
+    
+    if ($updateChoice -eq "y" -or $updateChoice -eq "Y") {
+        Write-Host ""
+        Write-Host "正在强制更新..." -ForegroundColor Cyan
+        
+        try {
+            # 下载最新版本
+            $updateUrl = "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.ps1?t=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+            $outputPath = "$env:USERPROFILE\cc.ps1"
+            
+            # 备份当前版本
+            if (Test-Path $outputPath) {
+                Copy-Item $outputPath "$outputPath.backup" -Force | Out-Null
+            }
+            
+            # 下载内容
+            $webClient = New-Object System.Net.WebClient
+            $webClient.Encoding = [System.Text.Encoding]::UTF8
+            $content = $webClient.DownloadString($updateUrl)
+            
+            # 根据控制台编码保存
+            $currentEncoding = [Console]::OutputEncoding
+            if ($currentEncoding.CodePage -eq 936) {
+                $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+            } else {
+                $saveEncoding = New-Object System.Text.UTF8Encoding $true
+            }
+            [System.IO.File]::WriteAllText($outputPath, $content, $saveEncoding)
+            
+            Write-Host ""
+            Write-Host "✓ 更新完成！" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "现在运行: " -NoNewline -ForegroundColor Gray
+            Write-Host "cc hello" -ForegroundColor Green
+        } catch {
+            Write-Host ""
+            Write-Host "✗ 更新失败" -ForegroundColor Red
+            Write-Host "请手动运行: " -NoNewline -ForegroundColor Gray
+            Write-Host "cc -u" -ForegroundColor Green
+        }
+    } else {
+        Write-Host "已跳过更新" -ForegroundColor Gray
     }
     
     exit 0

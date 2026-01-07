@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="0.1.4"
+VERSION="0.1.5"
 
 # 配置文件路径
 CONFIG_FILE="$HOME/.cc_config"
@@ -414,6 +414,41 @@ main() {
         echo -e "  表情: $EMOJI_HELLO"
         echo -e "  列表: $BULLET 项目1 $BULLET 项目2"
         echo -e "  当前: $BULLET_CURRENT 当前项"
+        
+        echo ""
+        echo -e "\033[1;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo -e "\033[0;37m是否要强制更新 cc 到最新版本？\033[0m"
+        echo -e "\033[0;90m(编码修复后建议更新以确保所有功能正常)\033[0m"
+        echo ""
+        echo -ne "\033[0;33m[y/n] (默认: n): \033[0m"
+        read -r update_choice < /dev/tty
+        
+        if [ "$update_choice" = "y" ] || [ "$update_choice" = "Y" ]; then
+            echo ""
+            echo -e "\033[1;36m正在强制更新...\033[0m"
+            
+            # 下载最新版本
+            local update_url="https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.sh"
+            local temp_file="/tmp/cc_update_$$.sh"
+            
+            if curl -fsSL "$update_url?t=$(date +%s)" -o "$temp_file" 2>/dev/null; then
+                # 备份当前版本
+                cp "$HOME/cc.sh" "$HOME/cc.sh.backup" 2>/dev/null
+                
+                # 安装新版本
+                mv "$temp_file" "$HOME/cc.sh"
+                chmod +x "$HOME/cc.sh"
+                
+                echo -e "\033[1;32m✓ 更新完成！\033[0m"
+                echo ""
+                echo -e "\033[0;37m现在运行: \033[1;32mcc hello\033[0m"
+            else
+                echo -e "\033[1;31m✗ 更新失败\033[0m"
+                echo -e "\033[0;37m请手动运行: \033[1;32mcc -u\033[0m"
+            fi
+        else
+            echo -e "\033[0;37m已跳过更新\033[0m"
+        fi
         
         exit 0
     fi
