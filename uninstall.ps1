@@ -1,11 +1,11 @@
 # cc 命令助手 Windows 卸载脚本
 
 # 颜色输出函数
-function Write-ColorOutput($ForegroundColor) {
+function Write-ColorOutput($ForegroundColor, $Text) {
     $fc = $host.UI.RawUI.ForegroundColor
     $host.UI.RawUI.ForegroundColor = $ForegroundColor
-    if ($args) {
-        Write-Output $args
+    if ($Text) {
+        Write-Output $Text
     }
     $host.UI.RawUI.ForegroundColor = $fc
 }
