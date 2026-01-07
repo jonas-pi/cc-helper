@@ -820,20 +820,17 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
         $changelog = $webClient.DownloadString("https://raw.githubusercontent.com/jonas-pi/cc-helper/main/CHANGELOG.md")
         $changelogLines = $changelog -split "`n"
         $inCurrentVersion = $false
-        $lineCount = 0
         foreach ($line in $changelogLines) {
             if ($line -match "## v$remoteVersion") {
                 $inCurrentVersion = $true
                 continue
             }
             if ($inCurrentVersion) {
-                if ($line -match "^## v" -and $line -notmatch "## v$remoteVersion") {
+                # 遇到分隔符或下一个版本标题时停止
+                if ($line -match "^---$" -or ($line -match "^## v" -and $line -notmatch "## v$remoteVersion")) {
                     break
                 }
-                if ($lineCount -lt 20) {
-                    Write-Host $line
-                    $lineCount++
-                }
+                Write-Host $line
             }
         }
         Write-Host ""

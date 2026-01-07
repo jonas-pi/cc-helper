@@ -608,9 +608,10 @@ main() {
             
             # 获取更新日志
             echo -e "\033[1;35m更新内容:\033[0m"
-            local changelog=$(curl -fsSL "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/CHANGELOG.md" 2>/dev/null | head -30)
+            local changelog=$(curl -fsSL "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/CHANGELOG.md" 2>/dev/null | head -100)
             if [ -n "$changelog" ]; then
-                echo "$changelog" | grep -A 20 "## v$remote_version" | head -20
+                # 提取当前版本的更新内容（直到遇到分隔符 --- 或下一个版本标题）
+                echo "$changelog" | awk -v ver="$remote_version" '/## v/{if($0 ~ "## v"ver){flag=1; print; next} else if(flag) exit} flag'
             fi
             echo ""
             
