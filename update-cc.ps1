@@ -12,6 +12,7 @@ Write-Host ""
 # 检测当前控制台编码
 $currentEncoding = [Console]::OutputEncoding
 Write-Host "当前控制台编码: $($currentEncoding.EncodingName)" -ForegroundColor Gray
+Write-Host "CodePage: $($currentEncoding.CodePage)" -ForegroundColor Gray
 Write-Host ""
 
 Write-Host "正在下载 cc.ps1..." -ForegroundColor Yellow
@@ -27,16 +28,18 @@ try {
     $saveEncoding = $null
     $encodingName = ""
     
+    Write-Host "[调试] CodePage = $($currentEncoding.CodePage)" -ForegroundColor DarkGray
+    
     if ($currentEncoding.CodePage -eq 936) {
         # GBK/GB2312 编码（中文 Windows 默认）
         $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
         $encodingName = "GBK (GB2312)"
-        Write-Host "检测到 GBK 控制台，使用 GBK 编码保存" -ForegroundColor Yellow
+        Write-Host "[编码选择] 检测到 GBK 控制台，使用 GBK 编码保存" -ForegroundColor Yellow
     } else {
         # 其他编码使用 UTF-8 with BOM
         $saveEncoding = New-Object System.Text.UTF8Encoding $true
         $encodingName = "UTF-8 with BOM"
-        Write-Host "使用 UTF-8 编码保存" -ForegroundColor Yellow
+        Write-Host "[编码选择] 使用 UTF-8 编码保存（CodePage: $($currentEncoding.CodePage)）" -ForegroundColor Yellow
     }
     
     [System.IO.File]::WriteAllText($outputPath, $content, $saveEncoding)
