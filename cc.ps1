@@ -160,29 +160,31 @@ $query
         # 工作模式：根据目标 Shell 生成不同提示词
         if ($TARGET_SHELL -eq "cmd") {
             $prompt = @"
-将以下中文需求转换为一条 Windows CMD 命令。
-只输出命令，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
+判断以下输入是否是命令需求：
+- 如果是命令需求（如"查看文件"、"列出目录"等），转换为一条 Windows CMD 命令并输出
+- 如果不是命令需求（如"你好"、"谢谢"、"再见"等问候语或闲聊），只输出 "NOT_A_COMMAND"
+
+只输出命令或 "NOT_A_COMMAND"，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
 注意：使用 CMD 语法，不是 PowerShell 语法。
 
-如果输入不是命令需求（比如问候语、闲聊等），请输出 "NOT_A_COMMAND"。
+输入：$query
 
-中文需求：$query
-
-CMD 命令：
+输出：
 "@
-            $systemMsg = "You are cc, a Windows CMD command assistant. If the input is a command request, output only the CMD command. If the input is not a command request (like greetings or casual chat), output 'NOT_A_COMMAND'. Use CMD syntax, not PowerShell syntax."
+            $systemMsg = "You are cc, a Windows CMD command assistant. If the input is a command request (like 'list files', 'show directory'), output only the CMD command. If the input is NOT a command request (like greetings 'hello', 'thanks', casual chat), output ONLY 'NOT_A_COMMAND' with nothing else. Use CMD syntax, not PowerShell syntax."
         } else {
             $prompt = @"
-将以下中文需求转换为一条 PowerShell 命令。
-只输出命令，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
+判断以下输入是否是命令需求：
+- 如果是命令需求（如"查看文件"、"列出目录"等），转换为一条 PowerShell 命令并输出
+- 如果不是命令需求（如"你好"、"谢谢"、"再见"等问候语或闲聊），只输出 "NOT_A_COMMAND"
 
-如果输入不是命令需求（比如问候语、闲聊等），请输出 "NOT_A_COMMAND"。
+只输出命令或 "NOT_A_COMMAND"，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
 
-中文需求：$query
+输入：$query
 
-PowerShell 命令：
+输出：
 "@
-            $systemMsg = "You are cc, a PowerShell command assistant. If the input is a command request, output only the PowerShell command. If the input is not a command request (like greetings or casual chat), output 'NOT_A_COMMAND'."
+            $systemMsg = "You are cc, a PowerShell command assistant. If the input is a command request (like 'list files', 'show directory'), output only the PowerShell command. If the input is NOT a command request (like greetings 'hello', 'thanks', casual chat), output ONLY 'NOT_A_COMMAND' with nothing else."
         }
     }
     
@@ -1317,21 +1319,22 @@ if ($MODE -eq "rest") {
     exit 0
 }
 
-# 工作模式：清理命令并执行
-$cmd = Sanitize-Command $cmd
-
-if ([string]::IsNullOrWhiteSpace($cmd)) {
-    Write-Host "ERROR: 空命令" -ForegroundColor Red
-    exit 1
-}
-
-# 检查是否是"非命令"标记
-if ($cmd -eq "NOT_A_COMMAND" -or $cmd -match "^NOT_A_COMMAND") {
+# 工作模式：先检查是否是"非命令"标记（在清理之前检查，避免被清理函数影响）
+$cmdTrimmed = $cmd.Trim()
+if ($cmdTrimmed -eq "NOT_A_COMMAND" -or $cmdTrimmed -match "^NOT_A_COMMAND") {
     Write-Host "别闹，好好工作。" -ForegroundColor Yellow
     Write-Host "想聊天？用 " -NoNewline -ForegroundColor Gray
     Write-Host "cc -r" -NoNewline -ForegroundColor Green
     Write-Host " 切换到休息模式~" -ForegroundColor Gray
     exit 0
+}
+
+# 清理命令并执行
+$cmd = Sanitize-Command $cmd
+
+if ([string]::IsNullOrWhiteSpace($cmd)) {
+    Write-Host "ERROR: 空命令" -ForegroundColor Red
+    exit 1
 }
 
 Write-Host "> $cmd" -ForegroundColor Gray
