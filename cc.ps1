@@ -4,6 +4,49 @@
 $OLLAMA_URL = "http://127.0.0.1:11434/v1"
 $MODEL = "phi3.5"
 
+# 检查并自动选择可用模型
+function Check-And-Select-Model {
+    # 检查当前配置的模型是否存在
+    $modelList = ollama list 2>$null
+    if ($modelList -and $modelList -match [regex]::Escape($MODEL)) {
+        return $true
+    }
+    
+    # 如果配置的模型不存在，尝试从已安装的模型中选择
+    if (-not $modelList) {
+        Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
+        Write-Host "请运行: ollama pull phi3.5" -ForegroundColor Gray
+        return $false
+    }
+    
+    $availableModels = $modelList | Select-Object -Skip 1 | ForEach-Object {
+        ($_ -split '\s+')[0]
+    } | Where-Object { $_ -ne "" }
+    
+    if ($availableModels.Count -eq 0) {
+        Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
+        Write-Host "请运行: ollama pull phi3.5" -ForegroundColor Gray
+        return $false
+    }
+    
+    # 优先级列表（Windows优先推荐PowerShell友好的模型）
+    $priorityModels = @("phi3.5", "llama3.2:3b", "llama3.2:1b", "qwen2.5:1.5b", "qwen2.5:3b", "qwen2.5:0.5b", "qwen2.5:7b")
+    
+    # 从优先级列表中找到第一个已安装的模型
+    foreach ($preferred in $priorityModels) {
+        if ($availableModels -contains $preferred) {
+            $script:MODEL = $preferred
+            Write-Host "注意: 使用模型 $MODEL" -ForegroundColor Yellow
+            return $true
+        }
+    }
+    
+    # 如果优先级列表中都没有，使用第一个可用的模型
+    $script:MODEL = $availableModels[0]
+    Write-Host "注意: 使用模型 $MODEL" -ForegroundColor Yellow
+    return $true
+}
+
 # 清理命令输出
 function Sanitize-Command {
     param([string]$cmd)
@@ -148,6 +191,12 @@ if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help") {
 }
 
 $userQuery = $args -join " "
+
+# 检查并选择可用模型
+if (-not (Check-And-Select-Model)) {
+    exit 1
+}
+
 $cmd = Get-AICommand $userQuery
 
 if ($cmd -match "^ERROR:") {

@@ -4,6 +4,40 @@
 OLLAMA_URL="http://127.0.0.1:11434/v1"
 MODEL="qwen2.5:1.5b"
 
+# 检查并自动选择可用模型
+check_and_select_model() {
+    # 检查当前配置的模型是否存在
+    if ollama list 2>/dev/null | grep -q "^${MODEL}"; then
+        return 0
+    fi
+    
+    # 如果配置的模型不存在，尝试从已安装的模型中选择
+    local available_models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+    
+    if [ -z "$available_models" ]; then
+        echo -e "\033[1;31mERROR: 未找到已安装的模型\033[0m" >&2
+        echo -e "\033[0;37m请运行: ollama pull qwen2.5:1.5b\033[0m" >&2
+        return 1
+    fi
+    
+    # 优先级列表（Linux优先推荐中文模型）
+    local priority_models=("qwen2.5:1.5b" "qwen2.5:3b" "qwen2.5:0.5b" "qwen2.5:7b" "phi3.5" "llama3.2:3b" "llama3.2:1b")
+    
+    # 从优先级列表中找到第一个已安装的模型
+    for preferred in "${priority_models[@]}"; do
+        if echo "$available_models" | grep -q "^${preferred}$"; then
+            MODEL="$preferred"
+            echo -e "\033[0;33m注意: 使用模型 ${MODEL}\033[0m" >&2
+            return 0
+        fi
+    done
+    
+    # 如果优先级列表中都没有，使用第一个可用的模型
+    MODEL=$(echo "$available_models" | head -n 1)
+    echo -e "\033[0;33m注意: 使用模型 ${MODEL}\033[0m" >&2
+    return 0
+}
+
 # 清理命令输出
 sanitize() {
     local cmd="$1"
@@ -106,6 +140,11 @@ main() {
         exit 1
     fi
 
+    # 检查并选择可用模型
+    if ! check_and_select_model; then
+        exit 1
+    fi
+    
     local user_query="$*"
     local cmd=$(get_command "$user_query")
 
