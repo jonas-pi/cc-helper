@@ -1,7 +1,7 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "0.3.1"
+$VERSION = "0.3.2"
 
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
@@ -142,22 +142,39 @@ function Safe-Write-Host {
     
     $consoleEncoding = [Console]::OutputEncoding
     if ($consoleEncoding.CodePage -eq 936) {
-        # GBK 环境：临时切换到 UTF-8 输出
-        $originalEncoding = [Console]::OutputEncoding
-        try {
-            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-            Write-Host $Message -ForegroundColor $ForegroundColor
-            # 如果显示提示且内容可能包含特殊字符，添加编码提示
-            if ($ShowEncodingHint -and ($Message -match '[^\x00-\x7F]')) {
-                Write-Host ""
-                Write-Host "提示: 如果看到问号，运行 " -NoNewline -ForegroundColor Yellow
-                Write-Host "cc -fix" -NoNewline -ForegroundColor Cyan
-                Write-Host " 切换到 UTF-8 编码" -ForegroundColor Yellow
+        # GBK 环境：检测是否包含 GBK 无法表示的字符
+        # 如果包含，直接提示用户切换到 UTF-8
+        $hasNonAscii = ($Message -match '[^\x00-\x7F]')
+        
+        if ($hasNonAscii) {
+            # 包含特殊字符，尝试使用 UTF-8 输出
+            $originalEncoding = [Console]::OutputEncoding
+            try {
+                # 切换到 UTF-8
+                [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+                $OutputEncoding = [System.Text.Encoding]::UTF8
+                
+                # 输出内容
+                Write-Host $Message -ForegroundColor $ForegroundColor
+                
+                # 显示编码提示
+                if ($ShowEncodingHint) {
+                    Write-Host ""
+                    Write-Host "提示: 在 GBK 编码下，某些字符可能显示为问号" -ForegroundColor Yellow
+                    Write-Host "建议: 运行 " -NoNewline -ForegroundColor Yellow
+                    Write-Host "cc -fix" -NoNewline -ForegroundColor Cyan
+                    Write-Host " 切换到 UTF-8 编码以获得最佳显示效果" -ForegroundColor Yellow
+                }
+            } catch {
+                # 如果失败，直接输出
+                Write-Host $Message -ForegroundColor $ForegroundColor
+            } finally {
+                # 恢复原始编码
+                [Console]::OutputEncoding = $originalEncoding
             }
-        } catch {
+        } else {
+            # 只包含 ASCII 字符，直接输出
             Write-Host $Message -ForegroundColor $ForegroundColor
-        } finally {
-            [Console]::OutputEncoding = $originalEncoding
         }
     } else {
         Write-Host $Message -ForegroundColor $ForegroundColor
