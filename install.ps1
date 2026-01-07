@@ -47,7 +47,83 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     Write-Yellow "提示: 某些操作可能需要管理员权限"
 }
 
-# 1. 安装 Ollama
+# 询问安装方式
+Write-Yellow "选择安装方式:"
+Write-Host "  " -NoNewline; Write-Host "1." -ForegroundColor Green -NoNewline; Write-Host " 本地安装 (Ollama + 本地模型，免费离线)"
+Write-Host "  " -NoNewline; Write-Host "2." -ForegroundColor Green -NoNewline; Write-Host " 云端 API (DeepSeek/豆包/通义千问等，需要 API Key)"
+Write-Output ""
+Write-Host "请选择 [1/2] (默认: 1): " -ForegroundColor Yellow -NoNewline
+$installChoice = Read-Host
+if ([string]::IsNullOrWhiteSpace($installChoice)) {
+    $installChoice = "1"
+}
+
+if ($installChoice -eq "2") {
+    # 跳过 Ollama 安装，直接配置云端 API
+    Write-Output ""
+    Write-Green "✓ 已选择云端 API 模式"
+    Write-Output ""
+    
+    # 直接下载 cc.ps1 脚本
+    Write-Yellow "[1/2] 下载 cc.ps1 脚本..."
+    try {
+        $webClient = New-Object System.Net.WebClient
+        $webClient.Encoding = [System.Text.Encoding]::UTF8
+        $scriptUrl = "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.ps1"
+        $content = $webClient.DownloadString($scriptUrl)
+        
+        # 检测控制台编码并保存
+        $currentEncoding = [Console]::OutputEncoding
+        if ($currentEncoding.CodePage -eq 936) {
+            $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+        } else {
+            $saveEncoding = New-Object System.Text.UTF8Encoding $true
+        }
+        
+        [System.IO.File]::WriteAllText($CC_SCRIPT_PATH, $content, $saveEncoding)
+        Write-Green "  ✓ cc.ps1 脚本下载成功"
+    } catch {
+        Write-Red "✗ cc.ps1 脚本下载失败: $($_.Exception.Message)"
+        exit 1
+    }
+    Write-Output ""
+    
+    # 配置 PowerShell Profile
+    Write-Yellow "[2/2] 配置环境..."
+    $profilePath = $PROFILE
+    if (-not (Test-Path $profilePath)) {
+        New-Item -Path $profilePath -ItemType File -Force | Out-Null
+    }
+    
+    $functionDef = @"
+function cc {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File "$CC_SCRIPT_PATH" `$args
+}
+"@
+    
+    if (-not (Select-String -Path $profilePath -Pattern "function cc" -Quiet)) {
+        Add-Content -Path $profilePath -Value $functionDef
+        Write-Green "  ✓ 已添加 cc 函数到 PowerShell Profile"
+    }
+    Write-Output ""
+    
+    # 完成提示
+    Write-Green "========================================"
+    Write-Green "  ✓ cc 命令助手安装完成！"
+    Write-Green "========================================"
+    Write-Output ""
+    Write-Yellow "下一步:"
+    Write-Host "  1. 刷新环境: " -NoNewline; Write-Host ". `$PROFILE" -ForegroundColor Green
+    Write-Host "  2. 配置 API: " -NoNewline; Write-Host "cc -config" -ForegroundColor Green
+    Write-Host "  3. 查看帮助: " -NoNewline; Write-Host "cc -help" -ForegroundColor Green
+    Write-Output ""
+    exit 0
+}
+
+# 1. 安装 Ollama (本地模式)
+Write-Output ""
+Write-Green "✓ 已选择本地 Ollama 模式"
+Write-Output ""
 Write-Yellow "[1/4] 检查并安装 Ollama..."
 if (Get-Command ollama -ErrorAction SilentlyContinue) {
     Write-Green "✓ Ollama 已安装"

@@ -49,7 +49,62 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
-# 1. 安装 Ollama
+# 询问安装方式
+echo -e "${YELLOW}选择安装方式:${NC}"
+echo -e "  ${GREEN}1.${NC} 本地安装 (Ollama + 本地模型，免费离线)"
+echo -e "  ${GREEN}2.${NC} 云端 API (DeepSeek/豆包/通义千问等，需要 API Key)"
+echo ""
+echo -ne "${YELLOW}请选择 [1/2] (默认: 1): ${NC}"
+read -r install_choice < /dev/tty
+install_choice=${install_choice:-1}
+
+if [ "$install_choice" = "2" ]; then
+    # 跳过 Ollama 安装，直接配置云端 API
+    echo ""
+    echo -e "${GREEN}✓ 已选择云端 API 模式${NC}"
+    echo ""
+    
+    # 直接下载 cc.sh 脚本
+    echo -e "${YELLOW}[1/2] 下载 cc.sh 脚本...${NC}"
+    if curl -fsSL "https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.sh" -o "$CC_SCRIPT_PATH" 2>/dev/null; then
+        chmod +x "$CC_SCRIPT_PATH"
+        echo -e "  ${GREEN}✓ cc.sh 脚本下载成功${NC}"
+    else
+        error_exit "cc.sh 脚本下载失败"
+    fi
+    echo ""
+    
+    # 配置 PATH 和别名
+    echo -e "${YELLOW}[2/2] 配置环境...${NC}"
+    mkdir -p "$BIN_DIR"
+    if ! grep -q "export PATH=\"\$HOME/bin:\$PATH\"" "$HOME/.bashrc"; then
+        echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.bashrc"
+        echo -e "  ${GREEN}✓ 已添加 ~/bin 到 PATH${NC}"
+    fi
+    
+    if ! grep -q "alias cc=" "$HOME/.bashrc"; then
+        echo 'alias cc="bash $HOME/cc.sh"' >> "$HOME/.bashrc"
+        echo -e "  ${GREEN}✓ 已添加 cc 别名${NC}"
+    fi
+    echo ""
+    
+    # 完成提示
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}  ✓ cc 命令助手安装完成！${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    echo ""
+    echo -e "${YELLOW}下一步:${NC}"
+    echo -e "  1. 刷新环境: ${GREEN}source ~/.bashrc${NC}"
+    echo -e "  2. 配置 API: ${GREEN}cc -config${NC}"
+    echo -e "  3. 查看帮助: ${GREEN}cc -help${NC}"
+    echo ""
+    exit 0
+fi
+
+# 1. 安装 Ollama (本地模式)
+echo ""
+echo -e "${GREEN}✓ 已选择本地 Ollama 模式${NC}"
+echo ""
 echo -e "${YELLOW}[1/4] 检查并安装 Ollama...${NC}"
 if command -v ollama &> /dev/null; then
     echo -e "${GREEN}✓ Ollama 已安装${NC}"

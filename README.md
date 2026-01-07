@@ -47,13 +47,23 @@ source ~/.bashrc
 cc hello
 ```
 
+**安装时可选：**
+- **选项 1**：本地安装（Ollama + 本地模型，免费离线）
+- **选项 2**：云端 API（DeepSeek/豆包/通义千问等，无需下载模型）
+
 ### Windows
 
 在 PowerShell 中运行：
 
 ```powershell
 irm https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.ps1 | iex
+. $PROFILE
+cc hello
 ```
+
+**安装时可选：**
+- **选项 1**：本地安装（Ollama + 本地模型，免费离线）
+- **选项 2**：云端 API（DeepSeek/豆包/通义千问等，无需下载模型）
 
 ## 使用示例
 
