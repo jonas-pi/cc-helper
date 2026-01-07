@@ -179,6 +179,190 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
     exit 0
 }
 
+# 预设指令: -change 切换模型
+if ($firstArg -eq "-change" -or $firstArg -eq "change") {
+    $modelList = ollama list 2>$null
+    if (-not $modelList) {
+        Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
+        exit 1
+    }
+    
+    $models = $modelList | Select-Object -Skip 1 | ForEach-Object {
+        ($_ -split '\s+')[0]
+    } | Where-Object { $_ -ne "" }
+    
+    if ($models.Count -eq 0) {
+        Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
+        exit 1
+    }
+    
+    Write-Host "已安装的模型:" -ForegroundColor Gray
+    for ($i = 0; $i -lt $models.Count; $i++) {
+        if ($models[$i] -eq $MODEL) {
+            Write-Host "  $($i + 1). " -NoNewline
+            Write-Host "$($models[$i])" -ForegroundColor Green -NoNewline
+            Write-Host " (当前)"
+        } else {
+            Write-Host "  $($i + 1). $($models[$i])"
+        }
+    }
+    
+    Write-Host ""
+    Write-Host "请选择模型 (序号): " -ForegroundColor Yellow -NoNewline
+    $choice = Read-Host
+    
+    $index = [int]$choice - 1
+    if ($index -lt 0 -or $index -ge $models.Count) {
+        Write-Host "无效选择" -ForegroundColor Red
+        exit 1
+    }
+    
+    $selected = $models[$index]
+    
+    # 更新脚本中的 MODEL 变量
+    $scriptPath = "$env:USERPROFILE\cc.ps1"
+    $content = Get-Content $scriptPath -Raw
+    $content = $content -replace '^\$MODEL = ".*"', "`$MODEL = `"$selected`""
+    
+    # 保存时使用正确的编码
+    $currentEncoding = [Console]::OutputEncoding
+    if ($currentEncoding.CodePage -eq 936) {
+        $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+    } else {
+        $saveEncoding = New-Object System.Text.UTF8Encoding $true
+    }
+    [System.IO.File]::WriteAllText($scriptPath, $content, $saveEncoding)
+    
+    Write-Host "已切换到: $selected" -ForegroundColor Gray
+    exit 0
+}
+
+# 预设指令: -add 安装新模型
+if ($firstArg -eq "-add" -or $firstArg -eq "add") {
+    Write-Host "推荐模型:" -ForegroundColor Gray
+    Write-Host "  1. phi3.5        - 微软模型，PS最佳 (2.2GB)"
+    Write-Host "  2. llama3.2:1b   - Meta轻量 (1.2GB)"
+    Write-Host "  3. llama3.2:3b   - Meta平衡 (2GB)"
+    Write-Host "  4. qwen2.5:0.5b  - 超轻量 (400MB)"
+    Write-Host "  5. qwen2.5:1.5b  - 轻量推荐 (1GB)"
+    Write-Host "  6. qwen2.5:3b    - 平衡之选 (2GB)"
+    Write-Host "  7. qwen2.5:7b    - 高性能 (4.7GB)"
+    Write-Host "  8. 自定义模型名"
+    Write-Host ""
+    Write-Host "请选择 (序号或输入模型名): " -ForegroundColor Yellow -NoNewline
+    $choice = Read-Host
+    
+    $model = switch ($choice) {
+        "1" { "phi3.5" }
+        "2" { "llama3.2:1b" }
+        "3" { "llama3.2:3b" }
+        "4" { "qwen2.5:0.5b" }
+        "5" { "qwen2.5:1.5b" }
+        "6" { "qwen2.5:3b" }
+        "7" { "qwen2.5:7b" }
+        "8" {
+            Write-Host "输入模型名: " -ForegroundColor Yellow -NoNewline
+            Read-Host
+        }
+        default { $choice }
+    }
+    
+    if ([string]::IsNullOrWhiteSpace($model)) {
+        Write-Host "无效输入" -ForegroundColor Red
+        exit 1
+    }
+    
+    Write-Host "正在安装 $model..." -ForegroundColor Gray
+    ollama pull $model
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "安装完成" -ForegroundColor Gray
+        Write-Host "是否切换到此模型? [y/n] " -ForegroundColor Yellow -NoNewline
+        $switch = Read-Host
+        if ($switch -eq "y" -or $switch -eq "Y" -or [string]::IsNullOrWhiteSpace($switch)) {
+            $scriptPath = "$env:USERPROFILE\cc.ps1"
+            $content = Get-Content $scriptPath -Raw
+            $content = $content -replace '^\$MODEL = ".*"', "`$MODEL = `"$model`""
+            
+            $currentEncoding = [Console]::OutputEncoding
+            if ($currentEncoding.CodePage -eq 936) {
+                $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+            } else {
+                $saveEncoding = New-Object System.Text.UTF8Encoding $true
+            }
+            [System.IO.File]::WriteAllText($scriptPath, $content, $saveEncoding)
+            
+            Write-Host "已切换到: $model" -ForegroundColor Gray
+        }
+    } else {
+        Write-Host "安装失败" -ForegroundColor Red
+        exit 1
+    }
+    exit 0
+}
+
+# 预设指令: -del 删除模型
+if ($firstArg -eq "-del" -or $firstArg -eq "delete" -or $firstArg -eq "rm") {
+    $modelList = ollama list 2>$null
+    if (-not $modelList) {
+        Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
+        exit 1
+    }
+    
+    $models = $modelList | Select-Object -Skip 1 | ForEach-Object {
+        ($_ -split '\s+')[0]
+    } | Where-Object { $_ -ne "" }
+    
+    if ($models.Count -eq 0) {
+        Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
+        exit 1
+    }
+    
+    Write-Host "已安装的模型:" -ForegroundColor Gray
+    for ($i = 0; $i -lt $models.Count; $i++) {
+        if ($models[$i] -eq $MODEL) {
+            Write-Host "  $($i + 1). " -NoNewline
+            Write-Host "$($models[$i])" -ForegroundColor Green -NoNewline
+            Write-Host " (当前使用)"
+        } else {
+            Write-Host "  $($i + 1). $($models[$i])"
+        }
+    }
+    
+    Write-Host ""
+    Write-Host "请选择要删除的模型 (序号，多个用空格分隔): " -ForegroundColor Yellow -NoNewline
+    $choices = Read-Host
+    
+    $numbers = $choices -split '\s+' | Where-Object { $_ -match '^\d+$' }
+    foreach ($num in $numbers) {
+        $index = [int]$num - 1
+        if ($index -lt 0 -or $index -ge $models.Count) {
+            Write-Host "无效序号: $num" -ForegroundColor Red
+            continue
+        }
+        
+        $selected = $models[$index]
+        
+        if ($selected -eq $MODEL) {
+            Write-Host "警告: $selected 是当前使用的模型" -ForegroundColor Yellow
+            Write-Host "确认删除? [y/n] " -ForegroundColor Yellow -NoNewline
+            $confirm = Read-Host
+            if ($confirm -ne "y" -and $confirm -ne "Y") {
+                Write-Host "跳过 $selected" -ForegroundColor Gray
+                continue
+            }
+        }
+        
+        Write-Host "正在删除 $selected..." -ForegroundColor Gray
+        ollama rm $selected 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "已删除 $selected" -ForegroundColor Gray
+        } else {
+            Write-Host "删除失败: $selected" -ForegroundColor Red
+        }
+    }
+    exit 0
+}
+
 # 帮助信息
 if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help") {
     Write-Host "用法: cc <中文需求>" -ForegroundColor Gray
