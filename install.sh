@@ -371,7 +371,7 @@ main() {
     
     # 预设指令 2: -u/update - 更新脚本
     if [ "$first_arg" = "-u" ] || [ "$first_arg" = "update" ] || [ "$first_arg" = "--update" ]; then
-        local update_url="https://raw.githubusercontent.com/jonas-pi/cc-helper/main/install.sh"
+        local update_url="https://raw.githubusercontent.com/jonas-pi/cc-helper/main/cc.sh"
         local script_path="$HOME/cc.sh"
         
         # 备份
@@ -380,7 +380,8 @@ main() {
         fi
         
         # 下载
-        if curl -fsSL "$update_url" | bash -s -- --update-only 2>/dev/null; then
+        if curl -fsSL "$update_url" -o "$script_path" 2>/dev/null; then
+            chmod +x "$script_path"
             echo -e "\033[0;37mupdated\033[0m"
         else
             echo -e "\033[1;31mfailed\033[0m"
@@ -416,9 +417,9 @@ main() {
 
 main "$@"
 CC_SCRIPT_EOF
-
-chmod +x "$CC_SCRIPT_PATH"
-echo -e "  ${GREEN}✓ cc.sh 脚本创建成功${NC}"
+    chmod +x "$CC_SCRIPT_PATH"
+    echo -e "  ${GREEN}✓ cc.sh 脚本创建成功${NC}"
+fi
 echo ""
 
 # 5. 创建 ~/bin 目录并设置 PATH
