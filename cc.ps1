@@ -1911,12 +1911,15 @@ function cc {
         Add-Content -Path $PROFILE -Value $setupCode
         Write-Host "  ✓ 已配置" -ForegroundColor Green
     } else {
-        # 更新现有的包装函数
-        $profileContent = $profileContent -replace '(?s)function cc\s*\{[^}]+\}', $setupCode.Split("`n")[-10..-1] -join "`n"
-        if ($profileContent -notmatch "function cc") {
-            Add-Content -Path $PROFILE -Value ($setupCode.Split("`n")[-10..-1] -join "`n")
+        # 更新现有的包装函数（使用正则表达式替换整个 function cc 块）
+        $newFunctionCode = ($setupCode -split "`n" | Select-Object -Skip 10 -Join "`n").Trim()
+        if ($profileContent -match '(?s)function cc\s*\{[^}]+\}') {
+            $profileContent = $profileContent -replace '(?s)function cc\s*\{[^}]+\}', $newFunctionCode
+            [System.IO.File]::WriteAllText($PROFILE, $profileContent, [System.Text.Encoding]::UTF8)
+            Write-Host "  ✓ 已更新包装函数" -ForegroundColor Green
         } else {
-            Write-Host "  ✓ 配置已存在" -ForegroundColor Green
+            Add-Content -Path $PROFILE -Value "`n$newFunctionCode"
+            Write-Host "  ✓ 已添加包装函数" -ForegroundColor Green
         }
     }
     Write-Host ""
