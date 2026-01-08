@@ -801,15 +801,25 @@ main() {
             CONFIGURED_MODELS=$(IFS=','; echo "${configured_models_array[*]}")
         fi
         
-        # 更新配置文件
+        # 更新配置文件（包括已配置的模型列表）
         if [ -f "$CONFIG_FILE" ]; then
             if grep -q "^MODEL=" "$CONFIG_FILE" 2>/dev/null; then
                 sed -i "s/^MODEL=.*/MODEL=\"$selected\"/" "$CONFIG_FILE"
             else
                 echo "MODEL=\"$selected\"" >> "$CONFIG_FILE"
             fi
+            
+            # 更新已配置的模型列表
+            if grep -q "^CONFIGURED_MODELS=" "$CONFIG_FILE" 2>/dev/null; then
+                sed -i "s/^CONFIGURED_MODELS=.*/CONFIGURED_MODELS=\"$CONFIGURED_MODELS\"/" "$CONFIG_FILE"
+            else
+                echo "CONFIGURED_MODELS=\"$CONFIGURED_MODELS\"" >> "$CONFIG_FILE"
+            fi
         else
-            echo "MODEL=\"$selected\"" > "$CONFIG_FILE"
+            cat > "$CONFIG_FILE" << EOF
+MODEL="$selected"
+CONFIGURED_MODELS="$CONFIGURED_MODELS"
+EOF
         fi
         
         echo ""
@@ -977,6 +987,24 @@ main() {
                 ;;
         esac
         
+        # 更新已配置的模型列表（如果当前模型不在列表中，添加它）
+        local configured_models_array=()
+        if [ -n "$CONFIGURED_MODELS" ]; then
+            IFS=',' read -ra configured_models_array <<< "$CONFIGURED_MODELS"
+        fi
+        
+        local found=0
+        for m in "${configured_models_array[@]}"; do
+            if [ "$m" = "$MODEL" ]; then
+                found=1
+                break
+            fi
+        done
+        if [ $found -eq 0 ] && [ -n "$MODEL" ]; then
+            configured_models_array+=("$MODEL")
+        fi
+        CONFIGURED_MODELS=$(IFS=','; echo "${configured_models_array[*]}")
+        
         # 保存配置
         cat > "$CONFIG_FILE" << EOF
 # CC 配置文件
@@ -987,6 +1015,7 @@ OLLAMA_URL="$OLLAMA_URL"
 MODEL="$MODEL"
 API_KEY="$API_KEY"
 MODE="$MODE"
+CONFIGURED_MODELS="$CONFIGURED_MODELS"
 EOF
         
         echo ""
