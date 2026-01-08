@@ -79,27 +79,49 @@ if (Test-Path $CONFIG_FILE) {
             }
         }
         
-        # 自动扫描并添加已配置的云端 API 模型（从 MODEL_API_CONFIG 中提取）
+        # 自动扫描并添加已配置的云端 API 模型
+        # 方法1：如果当前 API_TYPE 不是 ollama，且 MODEL 有值，说明是云端 API 模型
+        if ($script:MODEL -and $script:API_TYPE -ne "ollama" -and $script:API_TYPE -ne "") {
+            if ($script:CONFIGURED_MODELS -notcontains $script:MODEL) {
+                $script:CONFIGURED_MODELS += $script:MODEL
+            }
+        }
+        
+        # 方法2：从 MODEL_API_CONFIG 中提取已配置的模型
+        # 注意：MODEL_API_CONFIG 的变量名是安全化的，需要通过 CONFIGURED_MODELS 映射
+        # 但我们可以通过尝试常见的安全化规则来推断原始模型名
+        $foundApiModels = @()
         $configContent -split "`n" | ForEach-Object {
             if ($_ -match '\$MODEL_API_CONFIG_([^=]+)\s*=\s*@\{([^}]+)\}') {
                 $safeModelName = $matches[1].Trim()
                 $configStr = $matches[2]
                 
-                # 通过已配置的模型列表找到原始模型名
+                # 检查是否已经在 CONFIGURED_MODELS 中
+                $found = $false
                 foreach ($existingModel in $script:CONFIGURED_MODELS) {
                     $modelSafeName = $existingModel -replace '[^a-zA-Z0-9_]', '_'
                     if ($modelSafeName -eq $safeModelName) {
-                        # 模型已在列表中，跳过
+                        $found = $true
                         break
                     }
                 }
                 
-                # 如果找不到匹配的模型，尝试从配置中推断（可能是旧配置）
-                # 这里我们暂时跳过，因为需要 CONFIGURED_MODELS 来映射
+                # 如果不在 CONFIGURED_MODELS 中，尝试从安全化名称推断原始名称
+                # 常见规则：将 _ 替换回 : 或 -，但这不总是准确的
+                # 更安全的方法是：如果当前 MODEL 的安全化名称匹配，就使用当前 MODEL
+                if (-not $found) {
+                    if ($script:MODEL) {
+                        $currentModelSafe = $script:MODEL -replace '[^a-zA-Z0-9_]', '_'
+                        if ($currentModelSafe -eq $safeModelName) {
+                            # 当前模型匹配，已在上面的方法1中添加
+                            $found = $true
+                        }
+                    }
+                }
             }
         }
         
-        # 如果当前模型不在 CONFIGURED_MODELS 中，自动添加
+        # 如果当前模型不在 CONFIGURED_MODELS 中，自动添加（兜底）
         if ($script:MODEL -and $script:CONFIGURED_MODELS -notcontains $script:MODEL) {
             $script:CONFIGURED_MODELS += $script:MODEL
         }
