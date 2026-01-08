@@ -134,10 +134,18 @@ ${query}
         system_msg="You are cc, a Linux shell command assistant. If the input is a command request (like 'list files', 'show directory'), output only the shell command. If the input is NOT a command request (like greetings 'hello', 'thanks', casual chat), output ONLY 'NOT_A_COMMAND' with nothing else."
     fi
     
+    local max_tokens_value
+    if [ "$MODE" = "rest" ]; then
+        max_tokens_value=256
+    else
+        max_tokens_value=64
+    fi
+    
     local json_data=$(jq -n \
         --arg model "$MODEL" \
         --arg system "$system_msg" \
         --arg prompt "$prompt" \
+        --argjson max_tokens "$max_tokens_value" \
         --argjson stream "$( [ "$STREAM" = "true" ] && echo true || echo false )" \
         '{
             model: $model,
@@ -145,8 +153,8 @@ ${query}
                 {role: "system", content: $system},
                 {role: "user", content: $prompt}
             ],
-            temperature: 0,
-            max_tokens: 64,
+            temperature: 0.1,
+            max_tokens: $max_tokens,
             stream: $stream
         }')
 
@@ -1147,6 +1155,13 @@ EOF
     # 休息模式：直接输出回复
     if [ "$MODE" = "rest" ]; then
         echo -e "\033[0;37m$cmd\033[0m"
+        exit 0
+    fi
+    
+    # 工作模式：先检查是否是"非命令"标记（在清理之前检查，避免被清理函数影响）
+    if [ "$cmd" = "NOT_A_COMMAND" ] || [[ "$cmd" =~ ^NOT_A_COMMAND ]]; then
+        echo -e "\033[1;33m别闹，好好工作。\033[0m"
+        echo -e "\033[0;37m想聊天？用 \033[1;32mcc -r\033[0;37m 切换到休息模式~\033[0m"
         exit 0
     fi
     
