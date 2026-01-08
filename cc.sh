@@ -121,14 +121,12 @@ ${query}
 只输出命令，不要解释、不要 Markdown、不要占位符。
 如果缺少参数，使用最常见的默认命令。
 
-如果输入不是命令需求（比如问候语、闲聊等），请输出 \"NOT_A_COMMAND\"。
-
 需求：
 ${query}
 
 命令：
 "
-        system_msg="你是 cc，一个 Linux 命令转换助手。如果输入是命令需求，只输出命令，不要任何解释。如果输入不是命令需求（比如问候语或闲聊），输出 'NOT_A_COMMAND'。"
+        system_msg="你是 cc，一个 Linux 命令转换助手。只输出命令，不要任何解释。"
     fi
     
     local json_data=$(jq -n \
