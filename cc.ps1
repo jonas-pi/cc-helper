@@ -63,13 +63,63 @@ if (Test-Path $CONFIG_FILE) {
             $script:CONFIGURED_MODELS = @()
         }
         
-        # 如果当前模型不在 CONFIGURED_MODELS 中，且是本地模型，自动添加
-        if ($script:MODEL -and $script:API_TYPE -eq "ollama") {
-            $modelList = ollama list 2>$null
-            if ($modelList -and $modelList -match [regex]::Escape($script:MODEL)) {
-                if ($script:CONFIGURED_MODELS -notcontains $script:MODEL) {
-                    $script:CONFIGURED_MODELS += $script:MODEL
+        # 自动扫描并添加本地已安装的模型
+        $localModels = @()
+        $modelList = ollama list 2>$null
+        if ($modelList) {
+            $localModels = $modelList | Select-Object -Skip 1 | ForEach-Object {
+                ($_ -split '\s+')[0]
+            } | Where-Object { $_ -ne "" }
+        }
+        
+        # 将本地模型添加到 CONFIGURED_MODELS（如果不在列表中）
+        foreach ($localModel in $localModels) {
+            if ($script:CONFIGURED_MODELS -notcontains $localModel) {
+                $script:CONFIGURED_MODELS += $localModel
+            }
+        }
+        
+        # 自动扫描并添加已配置的云端 API 模型（从 MODEL_API_CONFIG 中提取）
+        $configContent -split "`n" | ForEach-Object {
+            if ($_ -match '\$MODEL_API_CONFIG_([^=]+)\s*=\s*@\{([^}]+)\}') {
+                $safeModelName = $matches[1].Trim()
+                $configStr = $matches[2]
+                
+                # 通过已配置的模型列表找到原始模型名
+                foreach ($existingModel in $script:CONFIGURED_MODELS) {
+                    $modelSafeName = $existingModel -replace '[^a-zA-Z0-9_]', '_'
+                    if ($modelSafeName -eq $safeModelName) {
+                        # 模型已在列表中，跳过
+                        break
+                    }
                 }
+                
+                # 如果找不到匹配的模型，尝试从配置中推断（可能是旧配置）
+                # 这里我们暂时跳过，因为需要 CONFIGURED_MODELS 来映射
+            }
+        }
+        
+        # 如果当前模型不在 CONFIGURED_MODELS 中，自动添加
+        if ($script:MODEL -and $script:CONFIGURED_MODELS -notcontains $script:MODEL) {
+            $script:CONFIGURED_MODELS += $script:MODEL
+        }
+        
+        # 如果 CONFIGURED_MODELS 有更新，保存到配置文件
+        if ($script:CONFIGURED_MODELS.Count -gt 0) {
+            $modelsArrayStr = "@(" + ($script:CONFIGURED_MODELS | ForEach-Object { "`"$_`"" }) -join "," + ")"
+            
+            # 更新配置文件中的 CONFIGURED_MODELS
+            if ($configContent -match '(?m)^\s*\$CONFIGURED_MODELS\s*=') {
+                $configContent = $configContent -replace '(?m)^\s*\$CONFIGURED_MODELS\s*=.*', "`$CONFIGURED_MODELS = $modelsArrayStr"
+            } else {
+                $configContent = $configContent.TrimEnd() + "`n`$CONFIGURED_MODELS = $modelsArrayStr"
+            }
+            
+            # 保存更新后的配置文件
+            try {
+                [System.IO.File]::WriteAllText($CONFIG_FILE, $configContent, [System.Text.Encoding]::UTF8)
+            } catch {
+                # 如果保存失败，不影响运行
             }
         }
         
