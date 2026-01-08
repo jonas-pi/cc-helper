@@ -1830,7 +1830,7 @@ if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $fir
     Write-Host "cc -w" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -r" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -stream" -ForegroundColor Green
     Write-Host "cc -config" -NoNewline -ForegroundColor Green; Write-Host "     " -NoNewline; Write-Host "cc -change" -NoNewline -ForegroundColor Green; Write-Host "     " -NoNewline; Write-Host "cc -add" -ForegroundColor Green
     Write-Host "cc -del" -NoNewline -ForegroundColor Green; Write-Host "        " -NoNewline; Write-Host "cc -shell" -NoNewline -ForegroundColor Green; Write-Host "      " -NoNewline; Write-Host "cc -fix" -ForegroundColor Green
-    Write-Host "cc -u" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -h" -ForegroundColor Green
+    Write-Host "cc -setup" -NoNewline -ForegroundColor Green; Write-Host "      " -NoNewline; Write-Host "cc -u" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -h" -ForegroundColor Green
     exit 0
 }
 
@@ -1861,7 +1861,7 @@ if ([string]::IsNullOrWhiteSpace($userQuery)) {
     Write-Host "cc -w" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -r" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -stream" -ForegroundColor Green
     Write-Host "cc -config" -NoNewline -ForegroundColor Green; Write-Host "     " -NoNewline; Write-Host "cc -change" -NoNewline -ForegroundColor Green; Write-Host "     " -NoNewline; Write-Host "cc -add" -ForegroundColor Green
     Write-Host "cc -del" -NoNewline -ForegroundColor Green; Write-Host "        " -NoNewline; Write-Host "cc -shell" -NoNewline -ForegroundColor Green; Write-Host "      " -NoNewline; Write-Host "cc -fix" -ForegroundColor Green
-    Write-Host "cc -u" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -h" -ForegroundColor Green
+    Write-Host "cc -setup" -NoNewline -ForegroundColor Green; Write-Host "      " -NoNewline; Write-Host "cc -u" -NoNewline -ForegroundColor Green; Write-Host "          " -NoNewline; Write-Host "cc -h" -ForegroundColor Green
     exit 0
 }
 
