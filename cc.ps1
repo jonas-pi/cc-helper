@@ -292,22 +292,30 @@ $query
         }
         
         # 根据 API 类型添加认证
-        if ($API_KEY) {
-            $headers["Authorization"] = "Bearer $API_KEY"
-        } elseif ($API_TYPE -eq "ollama") {
+        if ($script:API_KEY) {
+            $headers["Authorization"] = "Bearer $script:API_KEY"
+        } elseif ($script:API_TYPE -eq "ollama") {
             $headers["Authorization"] = "Bearer ollama"
         }
         
-        $response = Invoke-RestMethod -Uri "$script:OLLAMA_URL/chat/completions" `
+        # 使用 Invoke-WebRequest 并显式处理 UTF-8 编码（解决 GBK 环境乱码问题）
+        $jsonBytes = [System.Text.Encoding]::UTF8.GetBytes($jsonBody)
+        $webResponse = Invoke-WebRequest `
+            -Uri "$script:OLLAMA_URL/chat/completions" `
             -Method Post `
             -Headers $headers `
-            -Body $jsonBody `
+            -Body $jsonBytes `
+            -ContentType "application/json; charset=utf-8" `
             -ErrorAction Stop
+        
+        # 手动解析 UTF-8 响应
+        $responseText = [System.Text.Encoding]::UTF8.GetString($webResponse.Content)
+        $response = $responseText | ConvertFrom-Json
 
         if ($response.choices -and $response.choices.Count -gt 0 -and $response.choices[0].message.content) {
             $content = $response.choices[0].message.content
             
-            # 确保 content 是字符串（关键修复）
+            # 确保 content 是字符串
             if ($content -is [array]) {
                 # 如果是数组，取第一个元素或合并
                 if ($content.Count -eq 1) {
@@ -321,11 +329,6 @@ $query
             if ($content -isnot [string]) {
                 $content = [string]$content
             }
-            
-            # 确保内容正确编码
-            # PowerShell 字符串是 Unicode (UTF-16)，API 返回的也是 Unicode
-            # 在 GBK 环境下，直接使用字符串即可，PowerShell 会自动处理
-            # 如果出现乱码，建议切换到 UTF-8 编码
             
             # 清理并返回
             $content = $content.Trim()
@@ -494,28 +497,31 @@ if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-tes
         
         # 构建 headers
         $headers = @{
-            "Content-Type" = "application/json"
+            "Content-Type" = "application/json; charset=utf-8"
         }
         
-        if ($API_KEY) {
-            $headers["Authorization"] = "Bearer $API_KEY"
-        } elseif ($API_TYPE -eq "ollama") {
+        if ($script:API_KEY) {
+            $headers["Authorization"] = "Bearer $script:API_KEY"
+        } elseif ($script:API_TYPE -eq "ollama") {
             $headers["Authorization"] = "Bearer ollama"
         }
         
-        # 发送测试请求
+        # 发送测试请求（使用 UTF-8 编码）
         $startTime = Get-Date
+        $testBodyBytes = [System.Text.Encoding]::UTF8.GetBytes($testBody)
         $testResponse = Invoke-WebRequest -Uri "$script:OLLAMA_URL/chat/completions" `
             -Method Post `
             -Headers $headers `
-            -Body $testBody `
+            -Body $testBodyBytes `
+            -ContentType "application/json; charset=utf-8" `
             -TimeoutSec 30 `
             -ErrorAction Stop
         $endTime = Get-Date
         $duration = ($endTime - $startTime).TotalMilliseconds
         
-        # 解析响应
-        $responseObj = $testResponse.Content | ConvertFrom-Json
+        # 手动解析 UTF-8 响应
+        $responseText = [System.Text.Encoding]::UTF8.GetString($testResponse.Content)
+        $responseObj = $responseText | ConvertFrom-Json
         $content = $responseObj.choices[0].message.content
         
         if ($content) {
