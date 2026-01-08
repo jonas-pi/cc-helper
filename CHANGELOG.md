@@ -1,5 +1,71 @@
 # CC 命令助手 - 更新日志
 
+## v0.3.7 (2026-01-07) - 统一命令格式与自动模型发现
+
+### 🎯 重大变更
+
+- **统一预设命令格式**
+  - 所有预设命令现在都需要 `-` 前缀才能执行
+  - 移除所有不带 `-` 前缀的命令选项（如 `cc list` → `cc -list`）
+  - 统一 Windows 和 Linux 端的命令格式
+  - 不带 `-` 前缀的命令会被当作普通查询发送给 AI
+  - 改进：避免命令与普通查询的混淆，提高命令识别准确性
+
+### ✨ 功能增强
+
+- **自动模型发现与扫描**
+  - 配置文件加载时自动扫描本地已安装的模型（通过 `ollama list`）
+  - 自动将本地模型添加到 `CONFIGURED_MODELS`
+  - 自动发现已配置的云端 API 模型
+  - 自动将当前使用的模型添加到配置列表
+  - 自动更新配置文件，保存所有发现的模型
+  - 效果：`cc list` 和 `cc -testapi` 现在能显示所有可用模型，无需手动配置
+
+- **改进配置文件读取**
+  - 支持多种配置文件格式（PowerShell 数组格式和字符串格式）
+  - 更健壮的配置解析，自动处理格式差异
+  - 自动修复和更新配置文件
+
+- **更新自动补全功能**
+  - Windows 端 (`cc-completion.ps1`) 和 Linux 端 (`cc-completion.bash`) 都已更新
+  - 移除所有不带 `-` 前缀的命令选项
+  - 添加所有支持的变体（如 `--hello`, `--list` 等）
+  - 与新的预设命令格式完全一致
+
+### 🔧 技术改进
+
+- **配置文件自动同步**
+  - 自动扫描的模型会自动保存到配置文件
+  - 确保配置文件始终包含最新的模型列表
+  - 改进配置文件的健壮性和兼容性
+
+- **命令格式统一**
+  - Windows 和 Linux 端使用完全相同的命令格式
+  - 所有预设命令都支持 `-` 和 `--` 两种前缀
+  - 改进用户体验，减少混淆
+
+### 📝 命令变更对照表
+
+| 旧命令 | 新命令 |
+|--------|--------|
+| `cc hello` | `cc -hello` 或 `cc --hello` |
+| `cc list` | `cc -list` 或 `cc --list` |
+| `cc testapi` | `cc -testapi` 或 `cc -test` |
+| `cc work` | `cc -w` 或 `cc --work` |
+| `cc rest` / `cc chat` | `cc -r` / `cc --rest` / `cc --chat` |
+| `cc stream` | `cc -stream` 或 `cc --stream` |
+| `cc fix` | `cc -fix` / `cc --fix` / `cc -fix-encoding` |
+| `cc shell` | `cc -shell` 或 `cc --shell` |
+| `cc update` | `cc -u` / `cc --update` / `cc -update` |
+| `cc change` | `cc -change` 或 `cc --change` |
+| `cc add` | `cc -add` 或 `cc --add` |
+| `cc config` | `cc -config` 或 `cc --config` |
+| `cc del` / `cc delete` / `cc rm` | `cc -del` / `cc --del` / `cc -delete` / `cc -rm` |
+| `cc setup` | `cc -setup` 或 `cc --setup` |
+| `cc help` | `cc -h` / `cc --help` / `cc -help` |
+
+---
+
 ## v0.3.6 (2026-01-07) - 预设指令修复与模型管理增强
 
 ### 🐛 关键 Bug 修复
