@@ -299,7 +299,7 @@ $query
             }
         )
         temperature = 0.1
-        max_tokens = 64
+        max_tokens = if ($script:MODE -eq "rest") { 256 } else { 64 }  # 休息模式增加 token 数
         stream = $useStream
     } | ConvertTo-Json -Depth 10
 
