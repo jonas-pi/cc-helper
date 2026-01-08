@@ -673,6 +673,7 @@ main() {
             
             if [ -z "$models" ]; then
                 echo -e "\033[1;31mERROR: 未找到已安装的模型\033[0m"
+                echo -e "\033[0;37m提示: 使用 \033[1;32mcc -add\033[0;37m 安装新模型\033[0m"
                 exit 1
             fi
             
@@ -697,7 +698,12 @@ main() {
                 exit 1
             fi
         else
-            # 云端 API: 提供常见模型或手动输入
+            # 云端 API: 显示已配置的模型和常见模型
+            if [ -n "$MODEL" ]; then
+                echo -e "\033[0;37m已配置的模型: \033[1;32m$MODEL\033[0m"
+                echo ""
+            fi
+            
             echo -e "\033[0;37m常见模型:\033[0m"
             case "$API_TYPE" in
                 "openai")

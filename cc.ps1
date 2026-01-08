@@ -1037,15 +1037,18 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
 # 预设指令: -change 切换模型
 if ($firstArg -eq "-change" -or $firstArg -eq "change") {
     Write-Host "当前配置:" -ForegroundColor Cyan
-    Write-Host "  API 类型: " -NoNewline; Write-Host "$API_TYPE" -ForegroundColor Cyan
-    Write-Host "  当前模型: " -NoNewline; Write-Host "$MODEL" -ForegroundColor Green
+    Write-Host "  API 类型: " -NoNewline; Write-Host "$script:API_TYPE" -ForegroundColor Cyan
+    Write-Host "  当前模型: " -NoNewline; Write-Host "$script:MODEL" -ForegroundColor Green
     Write-Host ""
     
-    if ($API_TYPE -eq "ollama") {
+    if ($script:API_TYPE -eq "ollama") {
         # Ollama: 列出本地已下载的模型
         $modelList = ollama list 2>$null
         if (-not $modelList) {
             Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
+            Write-Host "提示: 使用 " -NoNewline -ForegroundColor Gray
+            Write-Host "cc -add" -NoNewline -ForegroundColor Green
+            Write-Host " 安装新模型" -ForegroundColor Gray
             exit 1
         }
         
@@ -1055,12 +1058,15 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
         
         if ($models.Count -eq 0) {
             Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
+            Write-Host "提示: 使用 " -NoNewline -ForegroundColor Gray
+            Write-Host "cc -add" -NoNewline -ForegroundColor Green
+            Write-Host " 安装新模型" -ForegroundColor Gray
             exit 1
         }
         
         Write-Host "已安装的模型:" -ForegroundColor Gray
         for ($i = 0; $i -lt $models.Count; $i++) {
-            if ($models[$i] -eq $MODEL) {
+            if ($models[$i] -eq $script:MODEL) {
                 Write-Host "  $($i + 1). " -NoNewline
                 Write-Host "$($models[$i])" -ForegroundColor Green -NoNewline
                 Write-Host " (当前)"
@@ -1081,9 +1087,15 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
         
         $selected = $models[$index]
     } else {
-        # 云端 API: 提供常见模型或手动输入
+        # 云端 API: 显示已配置的模型和常见模型
+        if ($script:MODEL) {
+            Write-Host "已配置的模型: " -NoNewline -ForegroundColor Gray
+            Write-Host "$script:MODEL" -ForegroundColor Green
+            Write-Host ""
+        }
+        
         Write-Host "常见模型:" -ForegroundColor Gray
-        switch ($API_TYPE) {
+        switch ($script:API_TYPE) {
             "openai" {
                 Write-Host "  1. gpt-3.5-turbo"
                 Write-Host "  2. gpt-4"
@@ -1120,7 +1132,7 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
         $choice = Read-Host
         
         $selected = ""
-        switch ($API_TYPE) {
+        switch ($script:API_TYPE) {
             "openai" {
                 switch ($choice) {
                     "1" { $selected = "gpt-3.5-turbo" }
@@ -1227,6 +1239,10 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
     } else {
         "`$MODEL = `"$selected`"" | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
     }
+    
+    # 同步到脚本作用域
+    $script:MODEL = $selected
+    $MODEL = $selected
     
     Write-Host ""
     Write-Host "✓ 已切换到: $selected" -ForegroundColor Green
