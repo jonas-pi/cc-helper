@@ -20,3 +20,4 @@ _cc_completion() {
 # 注册补全函数
 complete -F _cc_completion cc
 
+
