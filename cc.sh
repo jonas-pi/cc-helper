@@ -1431,67 +1431,6 @@ EOF
         
         exit 0
     fi
-
-        
-        echo -e "\033[0;37m已安装的模型:\033[0m"
-        local i=1
-        while IFS= read -r model; do
-            if [ "$model" = "$MODEL" ]; then
-                echo -e "  $i. \033[1;32m$model\033[0m (当前使用)"
-            else
-                echo -e "  $i. $model"
-            fi
-            i=$((i + 1))
-        done <<< "$models"
-        
-        echo ""
-        echo -ne "\033[0;33m请选择要删除的模型 (序号，多个用空格分隔): \033[0m"
-        read -r choices < /dev/tty
-        
-        for choice in $choices; do
-            local selected=$(echo "$models" | sed -n "${choice}p")
-            if [ -z "$selected" ]; then
-                echo -e "\033[1;31m无效序号: $choice\033[0m"
-                continue
-            fi
-            
-            if [ "$selected" = "$MODEL" ]; then
-                echo -e "\033[1;33m警告: $selected 是当前使用的模型\033[0m"
-                echo -ne "\033[0;33m确认删除? [y/n] \033[0m"
-                read -r confirm < /dev/tty
-                if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
-                    echo -e "\033[0;37m跳过 $selected\033[0m"
-                    continue
-                fi
-            fi
-            
-            echo -e "\033[0;37m正在删除 $selected...\033[0m"
-            if ollama rm "$selected" 2>/dev/null; then
-                # 从 CONFIGURED_MODELS 中移除
-                if [ -n "$CONFIGURED_MODELS" ]; then
-                    local configured_models_array=()
-                    IFS=',' read -ra configured_models_array <<< "$CONFIGURED_MODELS"
-                    local new_array=()
-                    for m in "${configured_models_array[@]}"; do
-                        if [ "$m" != "$selected" ]; then
-                            new_array+=("$m")
-                        fi
-                    done
-                    CONFIGURED_MODELS=$(IFS=','; echo "${new_array[*]}")
-                    
-                    # 更新配置文件
-                    if [ -f "$CONFIG_FILE" ]; then
-                        if grep -q "^CONFIGURED_MODELS=" "$CONFIG_FILE" 2>/dev/null; then
-                            sed -i "s/^CONFIGURED_MODELS=.*/CONFIGURED_MODELS=\"$CONFIGURED_MODELS\"/" "$CONFIG_FILE"
-                        fi
-                    fi
-                fi
-            else
-                echo -e "\033[1;31m删除失败: $selected\033[0m"
-            fi
-        done
-        exit 0
-    fi
     
     # 帮助信息
     if [ $# -lt 1 ] || [ "$first_arg" = "-h" ] || [ "$first_arg" = "--help" ] || [ "$first_arg" = "-help" ] || [ "$first_arg" = "help" ]; then
