@@ -283,157 +283,169 @@ main() {
         
         echo ""
         echo -e "\033[0;37m准备好了~ 有什么可以帮你的吗？\033[0m"
-        echo -e "\033[0;90m提示: 使用 \033[1;32mcc list\033[0;90m 查看模型列表\033[0m"
         exit 0
     fi
     
     # 预设指令: list 列出模型
     if [ "$first_arg" = "list" ] || [ "$first_arg" = "-list" ] || [ "$first_arg" = "--list" ]; then
-        if [ "$API_TYPE" = "ollama" ]; then
-            # Ollama: 列出本地安装的模型
-            local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
-            if [ -z "$models" ]; then
-                echo -e "\033[0;33m未找到已安装的模型\033[0m"
-                echo -e "\033[0;37m使用 \033[1;32mcc -add\033[0;37m 安装新模型\033[0m"
-                exit 0
-            fi
-            
-            echo -e "\033[0;37m已安装的模型:\033[0m"
-            echo ""
-            while IFS= read -r model; do
-                if [ "$model" = "$MODEL" ]; then
+        # 获取本地模型
+        local ollama_models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+        
+        # 获取已配置的云端 API 模型
+        local api_models=()
+        if [ -n "$CONFIGURED_MODELS" ]; then
+            IFS=',' read -ra configured_array <<< "$CONFIGURED_MODELS"
+            for model in "${configured_array[@]}"; do
+                if ! echo "$ollama_models" | grep -q "^${model}$"; then
+                    api_models+=("$model")
+                fi
+            done
+        fi
+        
+        # 显示云端 API 模型
+        if [ ${#api_models[@]} -gt 0 ]; then
+            echo -e "\033[0;37m云端 API 模型:\033[0m"
+            for model in "${api_models[@]}"; do
+                if [ "$model" = "$MODEL" ] && [ "$API_TYPE" != "ollama" ]; then
                     echo -e "  $BULLET_CURRENT \033[1;32m$model\033[0m \033[0;90m(当前)\033[0m"
                 else
                     echo -e "  $BULLET $model"
                 fi
-            done <<< "$models"
+            done
             echo ""
-            echo -e "\033[0;90m使用 \033[1;32mcc -change\033[0;90m 切换模型\033[0m"
-        else
-            # 其他 API: 显示 API 信息
-            echo -e "\033[0;37m当前 API 配置:\033[0m"
-            echo ""
-            echo -e "  API 类型: \033[1;36m$API_TYPE\033[0m"
-            echo -e "  API 地址: \033[0;90m$OLLAMA_URL\033[0m"
-            echo -e "  当前模型: \033[1;32m$MODEL\033[0m"
-            echo ""
-            echo -e "\033[0;90m使用 \033[1;32mcc -config\033[0;90m 更改配置\033[0m"
         fi
+        
+        # 显示本地模型
+        if [ -n "$ollama_models" ]; then
+            echo -e "\033[0;37m本地模型:\033[0m"
+            while IFS= read -r model; do
+                if [ "$model" = "$MODEL" ] && [ "$API_TYPE" = "ollama" ]; then
+                    echo -e "  $BULLET_CURRENT \033[1;32m$model\033[0m \033[0;90m(当前)\033[0m"
+                else
+                    echo -e "  $BULLET $model"
+                fi
+            done <<< "$ollama_models"
+            echo ""
+        fi
+        
+        if [ ${#api_models[@]} -eq 0 ] && [ -z "$ollama_models" ]; then
+            echo -e "\033[0;37m未找到模型\033[0m"
+        fi
+        
         exit 0
     fi
     
     # 预设指令: testapi 测试 API 连接
     if [ "$first_arg" = "testapi" ] || [ "$first_arg" = "test-api" ] || [ "$first_arg" = "-test" ]; then
-        echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-        echo -e "\033[1;36m            API 连接测试              \033[0m"
-        echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-        echo ""
+        # 获取所有配置的模型（包括云端和本地）
+        local all_models=()
+        declare -A model_configs  # key: 模型名, value: API配置字符串
         
-        echo -e "\033[0;37m当前配置:\033[0m"
-        echo -e "  API 类型: \033[1;36m$API_TYPE\033[0m"
-        echo -e "  API 地址: \033[0;37m$OLLAMA_URL\033[0m"
-        echo -e "  模型名称: \033[1;32m$MODEL\033[0m"
-        if [ -n "$API_KEY" ]; then
-            echo -e "  API Key:  \033[0;37m${API_KEY:0:10}...\033[0m"
-        else
-            echo -e "  API Key:  \033[0;33m(未设置)\033[0m"
-        fi
-        echo ""
+        # 获取本地模型
+        local ollama_models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
         
-        echo -e "\033[0;33m正在测试连接...\033[0m"
-        echo ""
-        
-        # 构建测试请求
-        local test_data=$(jq -n \
-            --arg model "$MODEL" \
-            '{
-                model: $model,
-                messages: [
-                    {role: "user", content: "hi"}
-                ],
-                max_tokens: 5
-            }')
-        
-        # 发送测试请求
-        local start_time=$(date +%s%N)
-        local response
-        if [ -n "$API_KEY" ]; then
-            response=$(timeout 30 curl -s -w "\n%{http_code}" -X POST "${OLLAMA_URL}/chat/completions" \
-                -H "Content-Type: application/json" \
-                -H "Authorization: Bearer $API_KEY" \
-                -d "$test_data" 2>&1)
-        elif [ "$API_TYPE" = "ollama" ]; then
-            response=$(timeout 30 curl -s -w "\n%{http_code}" -X POST "${OLLAMA_URL}/chat/completions" \
-                -H "Content-Type: application/json" \
-                -H "Authorization: Bearer ollama" \
-                -d "$test_data" 2>&1)
-        else
-            response=$(timeout 30 curl -s -w "\n%{http_code}" -X POST "${OLLAMA_URL}/chat/completions" \
-                -H "Content-Type: application/json" \
-                -d "$test_data" 2>&1)
-        fi
-        local end_time=$(date +%s%N)
-        local duration=$(( (end_time - start_time) / 1000000 ))
-        
-        # 分离 HTTP 状态码和响应体
-        local http_code=$(echo "$response" | tail -n 1)
-        local body=$(echo "$response" | sed '$d')
-        
-        # 检查结果
-        if [ "$http_code" = "200" ]; then
-            local content=$(echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null)
-            if [ -n "$content" ] && [ "$content" != "null" ]; then
-                echo -e "\033[1;32m✓ API 连接成功！\033[0m"
-                echo ""
-                echo -e "\033[0;37m响应时间: \033[1;36m${duration}ms\033[0m"
-                echo -e "\033[0;37m模型响应: \033[0;32m$content\033[0m"
-                echo ""
-                echo -e "\033[1;32m一切正常，可以使用 cc 了！\033[0m"
-            else
-                echo -e "\033[1;33m⚠ API 连接成功，但响应异常\033[0m"
-                echo ""
-                echo -e "\033[0;37mHTTP 状态码: \033[0;32m$http_code\033[0m"
-                echo -e "\033[0;37m响应时间: \033[1;36m${duration}ms\033[0m"
-                echo -e "\033[0;37m原始响应:\033[0m"
-                echo "$body" | jq . 2>/dev/null || echo "$body"
-            fi
-        else
-            echo -e "\033[1;31m✗ API 连接失败\033[0m"
-            echo ""
-            echo -e "\033[0;37mHTTP 状态码: \033[1;31m$http_code\033[0m"
-            echo -e "\033[0;37m响应时间: \033[1;36m${duration}ms\033[0m"
-            echo ""
-            echo -e "\033[0;33m可能的原因:\033[0m"
-            
-            if [ "$http_code" = "000" ] || [ -z "$http_code" ]; then
-                echo -e "  \033[1;31m1. 网络连接失败\033[0m"
-                echo -e "     - 检查网络连接"
-                echo -e "     - 检查 API 地址是否正确"
-                if [ "$API_TYPE" = "ollama" ]; then
-                    echo -e "     - 确认 Ollama 服务正在运行: \033[0;32mollama serve\033[0m"
+        # 获取已配置的云端 API 模型及其配置
+        if [ -n "$CONFIGURED_MODELS" ]; then
+            IFS=',' read -ra configured_array <<< "$CONFIGURED_MODELS"
+            for model in "${configured_array[@]}"; do
+                if ! echo "$ollama_models" | grep -q "^${model}$"; then
+                    all_models+=("$model")
+                    # 从配置文件读取该模型的 API 配置（简化处理，使用当前配置）
+                    model_configs["$model"]="api"
                 fi
-            elif [ "$http_code" = "401" ]; then
-                echo -e "  \033[1;31m1. API Key 无效或已过期\033[0m"
-                echo -e "     - 检查 API Key 是否正确"
-                echo -e "     - 使用 \033[1;32mcc -config\033[0m 重新配置"
-            elif [ "$http_code" = "404" ]; then
-                echo -e "  \033[1;31m1. API 地址错误\033[0m"
-                echo -e "     - 检查 API_URL 配置"
-                echo -e "     - 使用 \033[1;32mcc -config\033[0m 重新配置"
-            elif [ "$http_code" = "429" ]; then
-                echo -e "  \033[1;31m1. 请求过于频繁（限流）\033[0m"
-                echo -e "     - 稍后再试"
-            else
-                echo -e "  \033[1;31m1. 模型名称可能不正确\033[0m"
-                echo -e "     - 当前模型: \033[1;32m$MODEL\033[0m"
-                echo -e "     - 检查模型名称是否支持"
-                echo -e "  \033[1;31m2. API 服务异常\033[0m"
-                echo -e "     - 查看错误详情（如果有）"
+            done
+        fi
+        
+        # 添加本地模型
+        while IFS= read -r model; do
+            if [ -n "$model" ]; then
+                all_models+=("$model")
+                model_configs["$model"]="ollama"
+            fi
+        done <<< "$ollama_models"
+        
+        if [ ${#all_models[@]} -eq 0 ]; then
+            echo -e "\033[0;37m未找到配置的模型\033[0m"
+            exit 0
+        fi
+        
+        # 逐步测试每个模型
+        local success_count=0
+        local fail_count=0
+        
+        for test_model in "${all_models[@]}"; do
+            local config_type="${model_configs[$test_model]}"
+            if [ -z "$config_type" ]; then
+                config_type="ollama"
             fi
             
+            echo -ne "\033[1;36m$test_model \033[0;90m[$config_type] \033[0m"
+            
+            # 确定 API 配置
+            local test_api_type="ollama"
+            local test_api_url="http://127.0.0.1:11434/v1"
+            local test_api_key=""
+            
+            if [ "$config_type" != "ollama" ]; then
+                # 云端 API 模型，使用当前配置（简化处理）
+                test_api_type="$API_TYPE"
+                test_api_url="$OLLAMA_URL"
+                test_api_key="$API_KEY"
+            fi
+            
+            # 构建测试请求
+            local test_data=$(jq -n \
+                --arg model "$test_model" \
+                '{
+                    model: $model,
+                    messages: [
+                        {role: "user", content: "hi"}
+                    ],
+                    max_tokens: 5
+                }')
+            
+            # 发送测试请求
+            local response
+            if [ -n "$test_api_key" ]; then
+                response=$(timeout 30 curl -s -w "\n%{http_code}" -X POST "${test_api_url}/chat/completions" \
+                    -H "Content-Type: application/json" \
+                    -H "Authorization: Bearer $test_api_key" \
+                    -d "$test_data" 2>&1)
+            elif [ "$test_api_type" = "ollama" ]; then
+                response=$(timeout 30 curl -s -w "\n%{http_code}" -X POST "${test_api_url}/chat/completions" \
+                    -H "Content-Type: application/json" \
+                    -H "Authorization: Bearer ollama" \
+                    -d "$test_data" 2>&1)
+            else
+                response=$(timeout 30 curl -s -w "\n%{http_code}" -X POST "${test_api_url}/chat/completions" \
+                    -H "Content-Type: application/json" \
+                    -d "$test_data" 2>&1)
+            fi
+            
+            local http_code=$(echo "$response" | tail -n 1)
+            local body=$(echo "$response" | sed '$d')
+            
+            if [ "$http_code" = "200" ]; then
+                local content=$(echo "$body" | jq -r '.choices[0].message.content // empty' 2>/dev/null)
+                if [ -n "$content" ] && [ "$content" != "null" ]; then
+                    echo -e "\033[1;32m✓\033[0m"
+                    success_count=$((success_count + 1))
+                else
+                    echo -e "\033[1;33m⚠\033[0m"
+                    fail_count=$((fail_count + 1))
+                fi
+            else
+                echo -e "\033[1;31m✗\033[0m"
+                fail_count=$((fail_count + 1))
+            fi
+        done
+        
+        echo ""
+        echo -ne "\033[0;37m测试完成: \033[1;32m$success_count 成功\033[0m"
+        if [ $fail_count -gt 0 ]; then
+            echo -e ", \033[1;31m$fail_count 失败\033[0m"
+        else
             echo ""
-            echo -e "\033[0;37m错误详情:\033[0m"
-            echo "$body" | jq . 2>/dev/null || echo "$body"
         fi
         
         exit 0
@@ -855,8 +867,6 @@ EOF
         
         echo ""
         echo -e "\033[1;32m✓ 已切换到: $selected\033[0m"
-        echo ""
-        echo -e "\033[0;37m提示: 使用 \033[1;32mcc testapi\033[0;37m 测试新模型连接\033[0m"
         exit 0
     fi
     
@@ -895,12 +905,48 @@ EOF
         
         echo -e "\033[0;37m正在安装 $model...\033[0m"
         if ollama pull "$model"; then
-            echo -e "\033[0;37m安装完成\033[0m"
+            # 更新已配置的模型列表
+            local configured_models_array=()
+            if [ -n "$CONFIGURED_MODELS" ]; then
+                IFS=',' read -ra configured_models_array <<< "$CONFIGURED_MODELS"
+            fi
+            
+            local found=0
+            for m in "${configured_models_array[@]}"; do
+                if [ "$m" = "$model" ]; then
+                    found=1
+                    break
+                fi
+            done
+            if [ $found -eq 0 ]; then
+                configured_models_array+=("$model")
+            fi
+            CONFIGURED_MODELS=$(IFS=','; echo "${configured_models_array[*]}")
+            
+            # 更新配置文件
+            if [ -f "$CONFIG_FILE" ]; then
+                if grep -q "^CONFIGURED_MODELS=" "$CONFIG_FILE" 2>/dev/null; then
+                    sed -i "s/^CONFIGURED_MODELS=.*/CONFIGURED_MODELS=\"$CONFIGURED_MODELS\"/" "$CONFIG_FILE"
+                else
+                    echo "CONFIGURED_MODELS=\"$CONFIGURED_MODELS\"" >> "$CONFIG_FILE"
+                fi
+            else
+                cat > "$CONFIG_FILE" << EOF
+MODEL="$MODEL"
+CONFIGURED_MODELS="$CONFIGURED_MODELS"
+EOF
+            fi
+            
             echo -ne "\033[0;33m是否切换到此模型? [y/n] \033[0m"
             read -r switch < /dev/tty
             if [ "$switch" = "y" ] || [ "$switch" = "Y" ] || [ -z "$switch" ]; then
-                sed -i "s/^MODEL=.*/MODEL=\"$model\"/" "$HOME/cc.sh"
-                echo -e "\033[0;37m已切换到: $model\033[0m"
+                if [ -f "$CONFIG_FILE" ]; then
+                    if grep -q "^MODEL=" "$CONFIG_FILE" 2>/dev/null; then
+                        sed -i "s/^MODEL=.*/MODEL=\"$model\"/" "$CONFIG_FILE"
+                    else
+                        echo "MODEL=\"$model\"" >> "$CONFIG_FILE"
+                    fi
+                fi
             fi
         else
             echo -e "\033[1;31m安装失败\033[0m"
@@ -1091,8 +1137,6 @@ EOF
             echo -e "\033[0;37m  3. 网络连接是否正常\033[0m"
         fi
         
-        echo ""
-        echo -e "\033[0;37m现在运行: \033[1;32mcc hello\033[0m"
         exit 0
     fi
     
@@ -1139,7 +1183,25 @@ EOF
             
             echo -e "\033[0;37m正在删除 $selected...\033[0m"
             if ollama rm "$selected" 2>/dev/null; then
-                echo -e "\033[0;37m已删除 $selected\033[0m"
+                # 从 CONFIGURED_MODELS 中移除
+                if [ -n "$CONFIGURED_MODELS" ]; then
+                    local configured_models_array=()
+                    IFS=',' read -ra configured_models_array <<< "$CONFIGURED_MODELS"
+                    local new_array=()
+                    for m in "${configured_models_array[@]}"; do
+                        if [ "$m" != "$selected" ]; then
+                            new_array+=("$m")
+                        fi
+                    done
+                    CONFIGURED_MODELS=$(IFS=','; echo "${new_array[*]}")
+                    
+                    # 更新配置文件
+                    if [ -f "$CONFIG_FILE" ]; then
+                        if grep -q "^CONFIGURED_MODELS=" "$CONFIG_FILE" 2>/dev/null; then
+                            sed -i "s/^CONFIGURED_MODELS=.*/CONFIGURED_MODELS=\"$CONFIGURED_MODELS\"/" "$CONFIG_FILE"
+                        fi
+                    fi
+                fi
             else
                 echo -e "\033[1;31m删除失败: $selected\033[0m"
             fi
