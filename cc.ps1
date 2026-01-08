@@ -12,6 +12,7 @@ $script:MODEL = "phi3.5"
 $script:MODE = "work"  # work: 工作模式（只输出命令）, rest: 休息模式（可以聊天）
 $script:API_TYPE = "ollama"  # ollama, openai, anthropic, custom
 $script:API_KEY = ""  # API 密钥（如果需要）
+$script:CONFIGURED_MODELS = @()  # 已配置的模型列表（持久化保存）
 $script:TARGET_SHELL = "powershell"  # powershell 或 cmd
 $script:STREAM = $false  # true: 流式传输（逐字显示）, false: 一次性返回
 
@@ -31,11 +32,33 @@ if (Test-Path $CONFIG_FILE) {
         # 同步配置文件中的变量到脚本作用域
         if ($MODEL) { $script:MODEL = $MODEL }
         if ($MODE) { $script:MODE = $MODE }
+        # 加载已配置的模型列表
+        if ($CONFIGURED_MODELS) {
+            if ($CONFIGURED_MODELS -is [string]) {
+                # 如果是字符串，转换为数组
+                $script:CONFIGURED_MODELS = $CONFIGURED_MODELS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+            } else {
+                $script:CONFIGURED_MODELS = $CONFIGURED_MODELS
+            }
+        } else {
+            $script:CONFIGURED_MODELS = @()
+        }
         if ($API_TYPE) { $script:API_TYPE = $API_TYPE }
         if ($API_KEY) { $script:API_KEY = $API_KEY }
         if ($OLLAMA_URL) { $script:OLLAMA_URL = $OLLAMA_URL }
         if ($TARGET_SHELL) { $script:TARGET_SHELL = $TARGET_SHELL }
         if ($STREAM) { $script:STREAM = $STREAM }
+        # 加载已配置的模型列表
+        if ($CONFIGURED_MODELS) {
+            if ($CONFIGURED_MODELS -is [string]) {
+                # 如果是字符串，转换为数组
+                $script:CONFIGURED_MODELS = $CONFIGURED_MODELS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+            } else {
+                $script:CONFIGURED_MODELS = $CONFIGURED_MODELS
+            }
+        } else {
+            $script:CONFIGURED_MODELS = @()
+        }
         # 确保 MODE 变量被正确设置（如果配置文件加载失败，使用默认值）
         if (-not $script:MODE -or $script:MODE -eq "") {
             $script:MODE = "work"
@@ -1095,147 +1118,97 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
         }
         
         $selected = $models[$index]
+        
+        # 更新已配置的模型列表（Ollama 模式下保存已下载的模型）
+        if (-not $script:CONFIGURED_MODELS) {
+            $script:CONFIGURED_MODELS = @()
+        }
+        if ($selected -and $script:CONFIGURED_MODELS -notcontains $selected) {
+            $script:CONFIGURED_MODELS += $selected
+        }
     } else {
-        # 云端 API: 显示已配置的模型和常见模型
-        if ($script:MODEL) {
-            Write-Host "已配置的模型: " -NoNewline -ForegroundColor Gray
-            Write-Host "$script:MODEL" -ForegroundColor Green
-            Write-Host ""
+        # 云端 API: 只显示已配置的模型（从配置文件读取）
+        $configuredModels = $script:CONFIGURED_MODELS
+        if ($null -eq $configuredModels) {
+            $configuredModels = @()
         }
         
-        Write-Host "常见模型:" -ForegroundColor Gray
-        switch ($script:API_TYPE) {
-            "openai" {
-                Write-Host "  1. gpt-3.5-turbo"
-                Write-Host "  2. gpt-4"
-                Write-Host "  3. gpt-4-turbo"
-                Write-Host "  4. gpt-4o"
-                Write-Host "  5. gpt-4o-mini"
-            }
-            "anthropic" {
-                Write-Host "  1. claude-3-haiku-20240307"
-                Write-Host "  2. claude-3-sonnet-20240229"
-                Write-Host "  3. claude-3-opus-20240229"
-                Write-Host "  4. claude-3-5-sonnet-20241022"
-            }
-            "deepseek" {
-                Write-Host "  1. deepseek-chat"
-                Write-Host "  2. deepseek-coder"
-            }
-            "qwen" {
-                Write-Host "  1. qwen-plus"
-                Write-Host "  2. qwen-turbo"
-                Write-Host "  3. qwen-max"
-            }
-            "doubao" {
-                Write-Host "  1. doubao-pro-32k"
-                Write-Host "  2. doubao-lite-32k"
-            }
-            default {
-                Write-Host "  (自定义 API)" -ForegroundColor DarkGray
+        # 如果当前模型不在列表中，添加它
+        if ($script:MODEL -and $configuredModels -notcontains $script:MODEL) {
+            $configuredModels += $script:MODEL
+        }
+        
+        if ($configuredModels.Count -eq 0) {
+            Write-Host "未找到已配置的模型" -ForegroundColor Yellow
+            Write-Host "提示: 使用 " -NoNewline -ForegroundColor Gray
+            Write-Host "cc -config" -NoNewline -ForegroundColor Green
+            Write-Host " 配置 API 和模型" -ForegroundColor Gray
+            exit 0
+        }
+        
+        Write-Host "已配置的模型:" -ForegroundColor Gray
+        for ($i = 0; $i -lt $configuredModels.Count; $i++) {
+            if ($configuredModels[$i] -eq $script:MODEL) {
+                Write-Host "  $($i + 1). " -NoNewline
+                Write-Host "$($configuredModels[$i])" -ForegroundColor Green -NoNewline
+                Write-Host " (当前)"
+            } else {
+                Write-Host "  $($i + 1). $($configuredModels[$i])"
             }
         }
-        Write-Host "  0. 手动输入模型名称"
+        
+        Write-Host ""
+        Write-Host "  0. 手动输入新模型名称" -ForegroundColor DarkGray
         Write-Host ""
         Write-Host "请选择 (序号) 或直接输入模型名称: " -ForegroundColor Yellow -NoNewline
         $choice = Read-Host
         
         $selected = ""
-        switch ($script:API_TYPE) {
-            "openai" {
-                switch ($choice) {
-                    "1" { $selected = "gpt-3.5-turbo" }
-                    "2" { $selected = "gpt-4" }
-                    "3" { $selected = "gpt-4-turbo" }
-                    "4" { $selected = "gpt-4o" }
-                    "5" { $selected = "gpt-4o-mini" }
-                    default {
-                        if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
-                            $selected = Read-Host "输入模型名称"
-                        } else {
-                            $selected = $choice
-                        }
-                    }
-                }
+        # 检查是否是序号选择
+        if ($choice -match '^\d+$') {
+            $index = [int]$choice
+            if ($index -eq 0) {
+                $selected = Read-Host "输入模型名称"
+            } elseif ($index -gt 0 -and $index -le $configuredModels.Count) {
+                $selected = $configuredModels[$index - 1]
+            } else {
+                Write-Host "无效选择" -ForegroundColor Red
+                exit 1
             }
-            "anthropic" {
-                switch ($choice) {
-                    "1" { $selected = "claude-3-haiku-20240307" }
-                    "2" { $selected = "claude-3-sonnet-20240229" }
-                    "3" { $selected = "claude-3-opus-20240229" }
-                    "4" { $selected = "claude-3-5-sonnet-20241022" }
-                    default {
-                        if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
-                            $selected = Read-Host "输入模型名称"
-                        } else {
-                            $selected = $choice
-                        }
-                    }
-                }
-            }
-            "deepseek" {
-                switch ($choice) {
-                    "1" { $selected = "deepseek-chat" }
-                    "2" { $selected = "deepseek-coder" }
-                    default {
-                        if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
-                            $selected = Read-Host "输入模型名称"
-                        } else {
-                            $selected = $choice
-                        }
-                    }
-                }
-            }
-            "qwen" {
-                switch ($choice) {
-                    "1" { $selected = "qwen-plus" }
-                    "2" { $selected = "qwen-turbo" }
-                    "3" { $selected = "qwen-max" }
-                    default {
-                        if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
-                            $selected = Read-Host "输入模型名称"
-                        } else {
-                            $selected = $choice
-                        }
-                    }
-                }
-            }
-            "doubao" {
-                switch ($choice) {
-                    "1" { $selected = "doubao-pro-32k" }
-                    "2" { $selected = "doubao-lite-32k" }
-                    default {
-                        if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
-                            $selected = Read-Host "输入模型名称"
-                        } else {
-                            $selected = $choice
-                        }
-                    }
-                }
-            }
-            default {
-                # 自定义 API，直接输入
-                if ($choice -eq "0" -or [string]::IsNullOrWhiteSpace($choice)) {
-                    $selected = Read-Host "输入模型名称"
-                } else {
-                    $selected = $choice
-                }
-            }
+        } else {
+            # 直接输入模型名称
+            $selected = $choice
         }
         
         if ([string]::IsNullOrWhiteSpace($selected)) {
             Write-Host "无效输入" -ForegroundColor Red
             exit 1
         }
+        
+        # 如果新模型不在列表中，添加到列表
+        if ($configuredModels -notcontains $selected) {
+            $configuredModels += $selected
+        }
+        
+        # 更新已配置模型列表
+        $script:CONFIGURED_MODELS = $configuredModels
     }
     
-    # 更新配置文件
+    # 更新配置文件（包括已配置的模型列表）
     if (Test-Path $CONFIG_FILE) {
         $content = Get-Content $CONFIG_FILE -Raw
         if ($content -match '(?m)^\s*\$MODEL\s*=') {
             $content = $content -replace '(?m)^\s*\$MODEL\s*=\s*".*"', "`$MODEL = `"$selected`""
         } else {
             $content = $content.TrimEnd() + "`n`$MODEL = `"$selected`""
+        }
+        
+        # 更新已配置的模型列表
+        $modelsArrayStr = "@(" + ($script:CONFIGURED_MODELS | ForEach-Object { "`"$_`"" }) -join "," + ")"
+        if ($content -match '(?m)^\s*\$CONFIGURED_MODELS\s*=') {
+            $content = $content -replace '(?m)^\s*\$CONFIGURED_MODELS\s*=.*', "`$CONFIGURED_MODELS = $modelsArrayStr"
+        } else {
+            $content = $content.TrimEnd() + "`n`$CONFIGURED_MODELS = $modelsArrayStr"
         }
         
         $currentEncoding = [Console]::OutputEncoding
@@ -1246,7 +1219,11 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
         }
         [System.IO.File]::WriteAllText($CONFIG_FILE, $content, $saveEncoding)
     } else {
-        "`$MODEL = `"$selected`"" | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
+        $modelsArrayStr = "@(" + ($script:CONFIGURED_MODELS | ForEach-Object { "`"$_`"" }) -join "," + ")"
+        @"
+`$MODEL = `"$selected`"
+`$CONFIGURED_MODELS = $modelsArrayStr
+"@ | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
     }
     
     # 同步到脚本作用域
@@ -1429,7 +1406,16 @@ if ($firstArg -eq "-config" -or $firstArg -eq "config") {
         }
     }
     
+    # 更新已配置的模型列表（如果当前模型不在列表中，添加它）
+    if (-not $script:CONFIGURED_MODELS) {
+        $script:CONFIGURED_MODELS = @()
+    }
+    if ($MODEL -and $script:CONFIGURED_MODELS -notcontains $MODEL) {
+        $script:CONFIGURED_MODELS += $MODEL
+    }
+    
     # 保存配置
+    $modelsArrayStr = "@(" + ($script:CONFIGURED_MODELS | ForEach-Object { "`"$_`"" }) -join "," + ")"
     $configContent = @"
 # CC 配置文件
 # 由 cc -config 自动生成
@@ -1440,6 +1426,7 @@ if ($firstArg -eq "-config" -or $firstArg -eq "config") {
 `$API_KEY = "$API_KEY"
 `$MODE = "$MODE"
 `$TARGET_SHELL = "$TARGET_SHELL"
+`$CONFIGURED_MODELS = $modelsArrayStr
 "@
     
     $configContent | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
