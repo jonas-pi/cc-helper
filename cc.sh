@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 版本信息
-VERSION="0.3.3"
+VERSION="0.3.4"
 
 # 配置文件路径
 CONFIG_FILE="$HOME/.cc_config"
@@ -120,17 +120,18 @@ ${query}
 "
         system_msg="你是 cc，一个 AI 命令助手。性格：表面高冷实际上内心可爱热情的女孩子。你目前处于休息模式，可以和用户聊天交流。你的主要工作是帮助用户生成命令（工作模式），但现在是休息时间。回复时保持简洁、友好，偶尔展现出可爱的一面。"
     else
-        # 工作模式：只输出命令
-        prompt="将以下中文需求转换为一条可直接执行的 Linux shell 命令。
-只输出命令，不要解释、不要 Markdown、不要占位符。
-如果缺少参数，使用最常见的默认命令。
+        # 工作模式：判断是否是命令需求
+        prompt="判断以下输入是否是命令需求：
+- 如果是命令需求（如\"查看文件\"、\"列出目录\"等），转换为一条可直接执行的 Linux shell 命令并输出
+- 如果不是命令需求（如\"你好\"、\"谢谢\"、\"再见\"等问候语或闲聊），只输出 \"NOT_A_COMMAND\"
 
-需求：
-${query}
+只输出命令或 \"NOT_A_COMMAND\"，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
 
-命令：
+输入：${query}
+
+输出：
 "
-        system_msg="你是 cc，一个 Linux 命令转换助手。只输出命令，不要任何解释。"
+        system_msg="You are cc, a Linux shell command assistant. If the input is a command request (like 'list files', 'show directory'), output only the shell command. If the input is NOT a command request (like greetings 'hello', 'thanks', casual chat), output ONLY 'NOT_A_COMMAND' with nothing else."
     fi
     
     local json_data=$(jq -n \
