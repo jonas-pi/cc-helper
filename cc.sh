@@ -1140,13 +1140,6 @@ EOF
         exit 1
     fi
 
-    # 检查是否是"非命令"标记
-    if [ "$cmd" = "NOT_A_COMMAND" ] || [ "${cmd#NOT_A_COMMAND}" != "$cmd" ]; then
-        echo -e "\033[1;33m别闹，好好工作。\033[0m"
-        echo -e "\033[0;37m想聊天？用 \033[1;32mcc -r\033[0;37m 切换到休息模式~\033[0m"
-        exit 0
-    fi
-
     echo -e "\033[0;37m> $cmd\033[0m"
 
     echo -ne "[y/n] "
