@@ -1,7 +1,7 @@
 # cc 命令助手 PowerShell 脚本
 
 # 版本信息
-$VERSION = "0.3.3"
+$VERSION = "0.3.4"
 
 # 配置文件路径
 $CONFIG_FILE = "$env:USERPROFILE\.cc_config.ps1"
@@ -233,14 +233,6 @@ function Sanitize-Command {
 function Get-AICommand {
     param([string]$query)
     
-    # === 调试输出 ===
-    Write-Host "=== Get-AICommand 调试 ===" -ForegroundColor Yellow
-    Write-Host "收到的 query: [$query]" -ForegroundColor Gray
-    Write-Host "query 类型: $($query.GetType().Name)" -ForegroundColor Gray
-    Write-Host "query 长度: $($query.Length)" -ForegroundColor Gray
-    Write-Host "query 是否为空: $([string]::IsNullOrEmpty($query))" -ForegroundColor Gray
-    Write-Host "" -ForegroundColor Gray
-    
     # 根据模式设置不同的提示词
     $prompt = ""
     $systemMsg = ""
@@ -310,11 +302,6 @@ $query
         max_tokens = if ($script:MODE -eq "rest") { 256 } else { 64 }  # 休息模式增加 token 数
         stream = $useStream
     } | ConvertTo-Json -Depth 10
-
-    # === 调试：显示最终 prompt ===
-    Write-Host "=== 最终 Prompt ===" -ForegroundColor Cyan
-    Write-Host $prompt -ForegroundColor DarkGray
-    Write-Host "" -ForegroundColor Gray
 
     # 调用 API
     try {
@@ -1855,16 +1842,6 @@ $userQuery = if ($args.Count -eq 1 -and $args[0] -is [string]) {
 } else {
     ""
 }
-
-# === 调试：检查 userQuery ===
-Write-Host "=== 参数调试 ===" -ForegroundColor Magenta
-Write-Host "args.Count: $($args.Count)" -ForegroundColor Gray
-Write-Host "args: $($args | ConvertTo-Json -Compress)" -ForegroundColor Gray
-Write-Host "userQuery: [$userQuery]" -ForegroundColor Gray
-Write-Host "userQuery 类型: $($userQuery.GetType().Name)" -ForegroundColor Gray
-Write-Host "userQuery 长度: $($userQuery.Length)" -ForegroundColor Gray
-Write-Host "userQuery 是否为空: $([string]::IsNullOrEmpty($userQuery))" -ForegroundColor Gray
-Write-Host "" -ForegroundColor Gray
 
 # 如果输入为空，显示帮助信息
 if ([string]::IsNullOrWhiteSpace($userQuery)) {
