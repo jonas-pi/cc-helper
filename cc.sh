@@ -689,167 +689,244 @@ main() {
         echo -e "  当前模型: \033[1;32m$MODEL\033[0m"
         echo ""
         
-        if [ "$API_TYPE" = "ollama" ]; then
-            # Ollama: 列出本地已下载的模型
-            local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
-            
-            if [ -z "$models" ]; then
-                echo -e "\033[1;31mERROR: 未找到已安装的模型\033[0m"
-                echo -e "\033[0;37m提示: 使用 \033[1;32mcc -add\033[0;37m 安装新模型\033[0m"
-                exit 1
+        # 从配置文件读取已配置的模型列表
+        local configured_models_array=()
+        if [ -n "$CONFIGURED_MODELS" ]; then
+            IFS=',' read -ra configured_models_array <<< "$CONFIGURED_MODELS"
+        fi
+        
+        # 获取本地已安装的模型
+        local ollama_models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+        
+        # 分离云端 API 模型和本地模型
+        local api_models=()
+        local local_models=()
+        
+        for model in "${configured_models_array[@]}"; do
+            if echo "$ollama_models" | grep -q "^${model}$"; then
+                local_models+=("$model")
+            else
+                api_models+=("$model")
             fi
-            
-            echo -e "\033[0;37m已安装的模型:\033[0m"
-            local i=1
-            while IFS= read -r model; do
-                if [ "$model" = "$MODEL" ]; then
-                    echo -e "  $i. \033[1;32m$model\033[0m (当前)"
+        done
+        
+        # 合并所有模型用于显示
+        local all_models=()
+        local model_types=()  # 记录每个模型是 "API" 还是 "本地"
+        
+        # 1. 显示已配置的云端 API 模型
+        if [ ${#api_models[@]} -gt 0 ]; then
+            echo -e "\033[0;37m已配置的 API 模型:\033[0m"
+            for model in "${api_models[@]}"; do
+                all_models+=("$model")
+                model_types+=("API")
+                local i=${#all_models[@]}
+                if [ "$model" = "$MODEL" ] && [ "$API_TYPE" != "ollama" ]; then
+                    echo -e "  $i. \033[1;32m$model\033[0m [API] (当前)"
                 else
-                    echo -e "  $i. $model"
-                fi
-                i=$((i + 1))
-            done <<< "$models"
-            
-            echo ""
-            echo -ne "\033[0;33m请选择模型 (序号): \033[0m"
-            read -r choice < /dev/tty
-            
-            local selected=$(echo "$models" | sed -n "${choice}p")
-            if [ -z "$selected" ]; then
-                echo -e "\033[1;31m无效选择\033[0m"
-                exit 1
-            fi
-            
-            # 更新已配置的模型列表（Ollama 模式下保存已下载的模型）
-            local configured_models_array=()
-            if [ -n "$CONFIGURED_MODELS" ]; then
-                IFS=',' read -ra configured_models_array <<< "$CONFIGURED_MODELS"
-            fi
-            
-            local found=0
-            for m in "${configured_models_array[@]}"; do
-                if [ "$m" = "$selected" ]; then
-                    found=1
-                    break
+                    echo -e "  $i. $model [API]"
                 fi
             done
-            if [ $found -eq 0 ]; then
-                configured_models_array+=("$selected")
-            fi
-            CONFIGURED_MODELS=$(IFS=','; echo "${configured_models_array[*]}")
-        else
-            # 云端 API: 只显示已配置的模型（从配置文件读取）
-            # 解析已配置的模型列表（逗号分隔）
-            local configured_models_array=()
-            if [ -n "$CONFIGURED_MODELS" ]; then
-                IFS=',' read -ra configured_models_array <<< "$CONFIGURED_MODELS"
-            fi
-            
-            # 如果当前模型不在列表中，添加它
-            if [ -n "$MODEL" ]; then
+            echo ""
+        fi
+        
+        # 2. 显示本地已下载的模型（去重）
+        if [ -n "$ollama_models" ]; then
+            echo -e "\033[0;37m本地已下载的模型:\033[0m"
+            while IFS= read -r model; do
+                # 检查是否已经在 all_models 中
                 local found=0
-                for m in "${configured_models_array[@]}"; do
-                    if [ "$m" = "$MODEL" ]; then
+                for m in "${all_models[@]}"; do
+                    if [ "$m" = "$model" ]; then
                         found=1
                         break
                     fi
                 done
                 if [ $found -eq 0 ]; then
-                    configured_models_array+=("$MODEL")
+                    all_models+=("$model")
+                    model_types+=("本地")
+                    local i=${#all_models[@]}
+                    if [ "$model" = "$MODEL" ] && [ "$API_TYPE" = "ollama" ]; then
+                        echo -e "  $i. \033[1;32m$model\033[0m [本地] (当前)"
+                    else
+                        echo -e "  $i. $model [本地]"
+                    fi
                 fi
-            fi
-            
-            if [ ${#configured_models_array[@]} -eq 0 ]; then
+            done <<< "$ollama_models"
+            echo ""
+        fi
+        
+        # 如果没有找到任何模型
+        if [ ${#all_models[@]} -eq 0 ]; then
+            if [ "$API_TYPE" = "ollama" ]; then
+                echo -e "\033[1;31mERROR: 未找到已安装的模型\033[0m"
+                echo -e "\033[0;37m提示: 使用 \033[1;32mcc -add\033[0;37m 安装新模型\033[0m"
+            else
                 echo -e "\033[1;33m未找到已配置的模型\033[0m"
                 echo -e "\033[0;37m提示: 使用 \033[1;32mcc -config\033[0;37m 配置 API 和模型\033[0m"
-                exit 0
             fi
-            
-            echo -e "\033[0;37m已配置的模型:\033[0m"
-            local i=1
-            for model in "${configured_models_array[@]}"; do
-                if [ "$model" = "$MODEL" ]; then
-                    echo -e "  $i. \033[1;32m$model\033[0m (当前)"
-                else
-                    echo -e "  $i. $model"
-                fi
-                i=$((i + 1))
-            done
-            
-            echo ""
-            echo -e "  \033[0;90m0. 手动输入新模型名称\033[0m"
-            echo ""
-            echo -ne "\033[0;33m请选择 (序号) 或直接输入模型名称: \033[0m"
-            read -r choice < /dev/tty
-            
-            local selected=""
-            # 检查是否是序号选择
-            if [[ "$choice" =~ ^[0-9]+$ ]]; then
-                local index=$((choice))
-                if [ $index -eq 0 ]; then
-                    echo -ne "\033[0;33m输入模型名称: \033[0m"
-                    read -r selected < /dev/tty
-                    if [ -z "$selected" ]; then
-                        echo -e "\033[1;31mERROR: 模型名称不能为空\033[0m"
-                        exit 1
-                    fi
-                elif [ $index -gt 0 ] && [ $index -le ${#configured_models_array[@]} ]; then
-                    selected="${configured_models_array[$((index - 1))]}"
-                else
-                    echo -e "\033[1;31mERROR: 无效的序号，请输入 0-${#configured_models_array[@]} 之间的数字\033[0m"
-                    exit 1
-                fi
-            else
-                # 直接输入模型名称，验证是否为空
-                local input_model=$(echo "$choice" | xargs)
-                if [ -z "$input_model" ]; then
+            exit 0
+        fi
+        
+        echo -e "  \033[0;90m0. 手动输入新模型名称\033[0m"
+        echo ""
+        echo -ne "\033[0;33m请选择 (序号) 或直接输入模型名称: \033[0m"
+        read -r choice < /dev/tty
+        
+        local selected=""
+        # 检查是否是序号选择
+        if [[ "$choice" =~ ^[0-9]+$ ]]; then
+            local index=$((choice))
+            if [ $index -eq 0 ]; then
+                echo -ne "\033[0;33m输入模型名称: \033[0m"
+                read -r selected < /dev/tty
+                if [ -z "$selected" ]; then
                     echo -e "\033[1;31mERROR: 模型名称不能为空\033[0m"
                     exit 1
                 fi
-                # 检查是否是已知模型
-                local found=0
-                for m in "${configured_models_array[@]}"; do
-                    if [ "$m" = "$input_model" ]; then
-                        found=1
-                        break
-                    fi
-                done
-                if [ $found -eq 1 ]; then
-                    selected="$input_model"
-                else
-                    # 允许输入新模型名称（可能是新的 API 模型）
-                    selected="$input_model"
-                    echo -e "\033[1;33m提示: 将使用新模型名称 '$selected'，如果这是 API 模型，请确保已正确配置 API\033[0m"
-                fi
-            fi
-            
-            if [ -z "$selected" ]; then
-                echo -e "\033[1;31mERROR: 无效输入\033[0m"
+            elif [ $index -gt 0 ] && [ $index -le ${#all_models[@]} ]; then
+                selected="${all_models[$((index - 1))]}"
+            else
+                echo -e "\033[1;31mERROR: 无效的序号，请输入 0-${#all_models[@]} 之间的数字\033[0m"
                 exit 1
             fi
-            
-            # 如果新模型不在列表中，添加到列表
+        else
+            # 直接输入模型名称，验证是否为空
+            local input_model=$(echo "$choice" | xargs)
+            if [ -z "$input_model" ]; then
+                echo -e "\033[1;31mERROR: 模型名称不能为空\033[0m"
+                exit 1
+            fi
+            # 检查是否是已知模型
             local found=0
-            for m in "${configured_models_array[@]}"; do
-                if [ "$m" = "$selected" ]; then
+            for m in "${all_models[@]}"; do
+                if [ "$m" = "$input_model" ]; then
                     found=1
                     break
                 fi
             done
-            if [ $found -eq 0 ]; then
-                configured_models_array+=("$selected")
+            if [ $found -eq 1 ]; then
+                selected="$input_model"
+            else
+                # 允许输入新模型名称（可能是新的 API 模型）
+                selected="$input_model"
+                echo -e "\033[1;33m提示: 将使用新模型名称 '$selected'，如果这是 API 模型，请确保已正确配置 API\033[0m"
             fi
-            
-            # 更新 CONFIGURED_MODELS（转换为逗号分隔的字符串）
-            CONFIGURED_MODELS=$(IFS=','; echo "${configured_models_array[*]}")
         fi
         
-        # 更新配置文件（包括已配置的模型列表）
+        if [ -z "$selected" ]; then
+            echo -e "\033[1;31mERROR: 无效输入\033[0m"
+            exit 1
+        fi
+        
+        # 判断选择的模型是本地模型还是 API 模型
+        local selected_index=-1
+        for idx in "${!all_models[@]}"; do
+            if [ "${all_models[$idx]}" = "$selected" ]; then
+                selected_index=$idx
+                break
+            fi
+        done
+        
+        local is_local_model=0
+        if [ $selected_index -ge 0 ]; then
+            if [ "${model_types[$selected_index]}" = "本地" ]; then
+                is_local_model=1
+            fi
+        elif echo "$ollama_models" | grep -q "^${selected}$"; then
+            is_local_model=1
+        fi
+        
+        # 如果新模型不在列表中，添加到列表
+        local found=0
+        for m in "${configured_models_array[@]}"; do
+            if [ "$m" = "$selected" ]; then
+                found=1
+                break
+            fi
+        done
+        if [ $found -eq 0 ]; then
+            configured_models_array+=("$selected")
+        fi
+        
+        # 更新 CONFIGURED_MODELS（转换为逗号分隔的字符串）
+        CONFIGURED_MODELS=$(IFS=','; echo "${configured_models_array[*]}")
+        
+        # 加载已保存的模型 API 配置
+        declare -A saved_api_configs  # key: 原始模型名, value: API配置字符串
         if [ -f "$CONFIG_FILE" ]; then
+            # 读取所有已配置的模型列表（用于映射安全变量名到原始模型名）
+            local all_configured_models=()
+            if grep -q "^CONFIGURED_MODELS=" "$CONFIG_FILE" 2>/dev/null; then
+                local configured_line=$(grep "^CONFIGURED_MODELS=" "$CONFIG_FILE" | sed 's/^CONFIGURED_MODELS="\(.*\)"$/\1/')
+                IFS=',' read -ra all_configured_models <<< "$configured_line"
+            fi
+            
+            # 解析每个模型的 API 配置（格式：MODEL_API_CONFIG_modelname="API_TYPE=...;OLLAMA_URL=...;API_KEY=..."）
+            while IFS= read -r line; do
+                if [[ "$line" =~ ^MODEL_API_CONFIG_([^=]+)= ]]; then
+                    local safe_model_name="${BASH_REMATCH[1]}"
+                    local config_str=$(echo "$line" | sed 's/^MODEL_API_CONFIG_[^=]*="\(.*\)"$/\1/')
+                    
+                    # 通过 CONFIGURED_MODELS 找到对应的原始模型名
+                    for model in "${all_configured_models[@]}"; do
+                        local model_safe_name=$(echo "$model" | sed 's/[^a-zA-Z0-9_]/_/g')
+                        if [ "$model_safe_name" = "$safe_model_name" ]; then
+                            saved_api_configs["$model"]="$config_str"
+                            break
+                        fi
+                    done
+                fi
+            done < "$CONFIG_FILE"
+        fi
+        
+        # 根据选择的模型类型设置 API 配置
+        if [ $is_local_model -eq 1 ]; then
+            # 切换到本地模型，使用 ollama
+            API_TYPE="ollama"
+            OLLAMA_URL="http://127.0.0.1:11434/v1"
+            API_KEY=""
+        elif [ -n "${saved_api_configs[$selected]}" ]; then
+            # 恢复已保存的 API 配置
+            local config_str="${saved_api_configs[$selected]}"
+            API_TYPE=$(echo "$config_str" | sed -n 's/.*API_TYPE=\([^;]*\).*/\1/p')
+            OLLAMA_URL=$(echo "$config_str" | sed -n 's/.*OLLAMA_URL=\([^;]*\).*/\1/p')
+            API_KEY=$(echo "$config_str" | sed -n 's/.*API_KEY=\([^;]*\).*/\1/p')
+        else
+            # 新模型，使用当前 API 配置（保持当前配置）
+            :
+        fi
+        
+        # 保存该模型的 API 配置
+        local config_str="API_TYPE=$API_TYPE;OLLAMA_URL=$OLLAMA_URL;API_KEY=$API_KEY"
+        saved_api_configs["$selected"]="$config_str"
+        
+        # 更新配置文件（包括已配置的模型列表和每个模型的 API 配置）
+        if [ -f "$CONFIG_FILE" ]; then
+            # 更新 MODEL
             if grep -q "^MODEL=" "$CONFIG_FILE" 2>/dev/null; then
                 sed -i "s/^MODEL=.*/MODEL=\"$selected\"/" "$CONFIG_FILE"
             else
                 echo "MODEL=\"$selected\"" >> "$CONFIG_FILE"
+            fi
+            
+            # 更新 API_TYPE、OLLAMA_URL、API_KEY
+            if grep -q "^API_TYPE=" "$CONFIG_FILE" 2>/dev/null; then
+                sed -i "s/^API_TYPE=.*/API_TYPE=\"$API_TYPE\"/" "$CONFIG_FILE"
+            else
+                echo "API_TYPE=\"$API_TYPE\"" >> "$CONFIG_FILE"
+            fi
+            
+            if grep -q "^OLLAMA_URL=" "$CONFIG_FILE" 2>/dev/null; then
+                sed -i "s|^OLLAMA_URL=.*|OLLAMA_URL=\"$OLLAMA_URL\"|" "$CONFIG_FILE"
+            else
+                echo "OLLAMA_URL=\"$OLLAMA_URL\"" >> "$CONFIG_FILE"
+            fi
+            
+            if grep -q "^API_KEY=" "$CONFIG_FILE" 2>/dev/null; then
+                sed -i "s|^API_KEY=.*|API_KEY=\"$API_KEY\"|" "$CONFIG_FILE"
+            else
+                echo "API_KEY=\"$API_KEY\"" >> "$CONFIG_FILE"
             fi
             
             # 更新已配置的模型列表
@@ -858,11 +935,30 @@ main() {
             else
                 echo "CONFIGURED_MODELS=\"$CONFIGURED_MODELS\"" >> "$CONFIG_FILE"
             fi
+            
+            # 删除旧的模型 API 配置
+            sed -i '/^MODEL_API_CONFIG_/d' "$CONFIG_FILE"
+            
+            # 添加所有模型的 API 配置
+            for model_name in "${!saved_api_configs[@]}"; do
+                local safe_model_name=$(echo "$model_name" | sed 's/[^a-zA-Z0-9_]/_/g')
+                local config_str="${saved_api_configs[$model_name]}"
+                echo "MODEL_API_CONFIG_${safe_model_name}=\"$config_str\"" >> "$CONFIG_FILE"
+            done
         else
             cat > "$CONFIG_FILE" << EOF
 MODEL="$selected"
+API_TYPE="$API_TYPE"
+OLLAMA_URL="$OLLAMA_URL"
+API_KEY="$API_KEY"
 CONFIGURED_MODELS="$CONFIGURED_MODELS"
 EOF
+            # 添加所有模型的 API 配置
+            for model_name in "${!saved_api_configs[@]}"; do
+                local safe_model_name=$(echo "$model_name" | sed 's/[^a-zA-Z0-9_]/_/g')
+                local config_str="${saved_api_configs[$model_name]}"
+                echo "MODEL_API_CONFIG_${safe_model_name}=\"$config_str\"" >> "$CONFIG_FILE"
+            done
         fi
         
         echo ""
