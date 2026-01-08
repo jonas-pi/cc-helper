@@ -25,6 +25,10 @@ if [ -f "$CONFIG_FILE" ]; then
     if [ -z "$MODE" ] || [ "$MODE" != "work" ] && [ "$MODE" != "rest" ]; then
         MODE="work"
     fi
+    # 确保 CONFIGURED_MODELS 有值
+    if [ -z "$CONFIGURED_MODELS" ]; then
+        CONFIGURED_MODELS=""
+    fi
 fi
 
 # 检测终端编码并选择合适的字符
@@ -695,122 +699,106 @@ main() {
                 echo -e "\033[1;31m无效选择\033[0m"
                 exit 1
             fi
-        else
-            # 云端 API: 显示已配置的模型和常见模型
-            if [ -n "$MODEL" ]; then
-                echo -e "\033[0;37m已配置的模型: \033[1;32m$MODEL\033[0m"
-                echo ""
+            
+            # 更新已配置的模型列表（Ollama 模式下保存已下载的模型）
+            local configured_models_array=()
+            if [ -n "$CONFIGURED_MODELS" ]; then
+                IFS=',' read -ra configured_models_array <<< "$CONFIGURED_MODELS"
             fi
             
-            echo -e "\033[0;37m常见模型:\033[0m"
-            case "$API_TYPE" in
-                "openai")
-                    echo -e "  1. gpt-3.5-turbo"
-                    echo -e "  2. gpt-4"
-                    echo -e "  3. gpt-4-turbo"
-                    echo -e "  4. gpt-4o"
-                    echo -e "  5. gpt-4o-mini"
-                    ;;
-                "anthropic")
-                    echo -e "  1. claude-3-haiku-20240307"
-                    echo -e "  2. claude-3-sonnet-20240229"
-                    echo -e "  3. claude-3-opus-20240229"
-                    echo -e "  4. claude-3-5-sonnet-20241022"
-                    ;;
-                "deepseek")
-                    echo -e "  1. deepseek-chat"
-                    echo -e "  2. deepseek-coder"
-                    ;;
-                "qwen")
-                    echo -e "  1. qwen-plus"
-                    echo -e "  2. qwen-turbo"
-                    echo -e "  3. qwen-max"
-                    ;;
-                "doubao")
-                    echo -e "  1. doubao-pro-32k"
-                    echo -e "  2. doubao-lite-32k"
-                    ;;
-                *)
-                    echo -e "  \033[0;90m(自定义 API)\033[0m"
-                    ;;
-            esac
-            echo -e "  0. 手动输入模型名称"
+            local found=0
+            for m in "${configured_models_array[@]}"; do
+                if [ "$m" = "$selected" ]; then
+                    found=1
+                    break
+                fi
+            done
+            if [ $found -eq 0 ]; then
+                configured_models_array+=("$selected")
+            fi
+            CONFIGURED_MODELS=$(IFS=','; echo "${configured_models_array[*]}")
+        else
+            # 云端 API: 只显示已配置的模型（从配置文件读取）
+            # 解析已配置的模型列表（逗号分隔）
+            local configured_models_array=()
+            if [ -n "$CONFIGURED_MODELS" ]; then
+                IFS=',' read -ra configured_models_array <<< "$CONFIGURED_MODELS"
+            fi
+            
+            # 如果当前模型不在列表中，添加它
+            if [ -n "$MODEL" ]; then
+                local found=0
+                for m in "${configured_models_array[@]}"; do
+                    if [ "$m" = "$MODEL" ]; then
+                        found=1
+                        break
+                    fi
+                done
+                if [ $found -eq 0 ]; then
+                    configured_models_array+=("$MODEL")
+                fi
+            fi
+            
+            if [ ${#configured_models_array[@]} -eq 0 ]; then
+                echo -e "\033[1;33m未找到已配置的模型\033[0m"
+                echo -e "\033[0;37m提示: 使用 \033[1;32mcc -config\033[0;37m 配置 API 和模型\033[0m"
+                exit 0
+            fi
+            
+            echo -e "\033[0;37m已配置的模型:\033[0m"
+            local i=1
+            for model in "${configured_models_array[@]}"; do
+                if [ "$model" = "$MODEL" ]; then
+                    echo -e "  $i. \033[1;32m$model\033[0m (当前)"
+                else
+                    echo -e "  $i. $model"
+                fi
+                i=$((i + 1))
+            done
+            
+            echo ""
+            echo -e "  \033[0;90m0. 手动输入新模型名称\033[0m"
             echo ""
             echo -ne "\033[0;33m请选择 (序号) 或直接输入模型名称: \033[0m"
             read -r choice < /dev/tty
             
             local selected=""
-            case "$API_TYPE" in
-                "openai")
-                    case "$choice" in
-                        1) selected="gpt-3.5-turbo" ;;
-                        2) selected="gpt-4" ;;
-                        3) selected="gpt-4-turbo" ;;
-                        4) selected="gpt-4o" ;;
-                        5) selected="gpt-4o-mini" ;;
-                        0|*) 
-                            echo -ne "\033[0;33m输入模型名称: \033[0m"
-                            read -r selected < /dev/tty
-                            ;;
-                    esac
-                    ;;
-                "anthropic")
-                    case "$choice" in
-                        1) selected="claude-3-haiku-20240307" ;;
-                        2) selected="claude-3-sonnet-20240229" ;;
-                        3) selected="claude-3-opus-20240229" ;;
-                        4) selected="claude-3-5-sonnet-20241022" ;;
-                        0|*) 
-                            echo -ne "\033[0;33m输入模型名称: \033[0m"
-                            read -r selected < /dev/tty
-                            ;;
-                    esac
-                    ;;
-                "deepseek")
-                    case "$choice" in
-                        1) selected="deepseek-chat" ;;
-                        2) selected="deepseek-coder" ;;
-                        0|*) 
-                            echo -ne "\033[0;33m输入模型名称: \033[0m"
-                            read -r selected < /dev/tty
-                            ;;
-                    esac
-                    ;;
-                "qwen")
-                    case "$choice" in
-                        1) selected="qwen-plus" ;;
-                        2) selected="qwen-turbo" ;;
-                        3) selected="qwen-max" ;;
-                        0|*) 
-                            echo -ne "\033[0;33m输入模型名称: \033[0m"
-                            read -r selected < /dev/tty
-                            ;;
-                    esac
-                    ;;
-                "doubao")
-                    case "$choice" in
-                        1) selected="doubao-pro-32k" ;;
-                        2) selected="doubao-lite-32k" ;;
-                        0|*) 
-                            echo -ne "\033[0;33m输入模型名称: \033[0m"
-                            read -r selected < /dev/tty
-                            ;;
-                    esac
-                    ;;
-                *)
-                    # 自定义 API，直接输入
-                    selected="$choice"
-                    if [ "$choice" = "0" ] || [ -z "$selected" ]; then
-                        echo -ne "\033[0;33m输入模型名称: \033[0m"
-                        read -r selected < /dev/tty
-                    fi
-                    ;;
-            esac
+            # 检查是否是序号选择
+            if [[ "$choice" =~ ^[0-9]+$ ]]; then
+                local index=$((choice))
+                if [ $index -eq 0 ]; then
+                    echo -ne "\033[0;33m输入模型名称: \033[0m"
+                    read -r selected < /dev/tty
+                elif [ $index -gt 0 ] && [ $index -le ${#configured_models_array[@]} ]; then
+                    selected="${configured_models_array[$((index - 1))]}"
+                else
+                    echo -e "\033[1;31m无效选择\033[0m"
+                    exit 1
+                fi
+            else
+                # 直接输入模型名称
+                selected="$choice"
+            fi
             
             if [ -z "$selected" ]; then
                 echo -e "\033[1;31m无效输入\033[0m"
                 exit 1
             fi
+            
+            # 如果新模型不在列表中，添加到列表
+            local found=0
+            for m in "${configured_models_array[@]}"; do
+                if [ "$m" = "$selected" ]; then
+                    found=1
+                    break
+                fi
+            done
+            if [ $found -eq 0 ]; then
+                configured_models_array+=("$selected")
+            fi
+            
+            # 更新 CONFIGURED_MODELS（转换为逗号分隔的字符串）
+            CONFIGURED_MODELS=$(IFS=','; echo "${configured_models_array[*]}")
         fi
         
         # 更新配置文件
