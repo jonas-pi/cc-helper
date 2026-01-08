@@ -370,7 +370,20 @@ PowerShell 命令：
 }
 
 # 主函数
-$firstArg = if ($args.Count -gt 0) { $args[0] } else { "" }
+# 处理参数：如果第一个参数是单个字符串且包含空格，可能是被包装函数拼接的，需要重新解析
+$firstArg = if ($args.Count -gt 0) {
+    $arg = $args[0]
+    # 如果是单个字符串且以 - 开头，可能是预设指令
+    if ($arg -is [string] -and $arg -match '^-\w+') {
+        # 提取第一个单词（预设指令）
+        $parts = $arg -split '\s+', 2
+        $parts[0]
+    } else {
+        $arg
+    }
+} else {
+    ""
+}
 
 # 预设指令: hello（不依赖模型）
 if ($firstArg -eq "hello") {
@@ -497,7 +510,7 @@ if ($firstArg -eq "list" -or $firstArg -eq "-list" -or $firstArg -eq "--list") {
 }
 
 # 预设指令: testapi 测试 API 连接
-if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-test") {
+if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-test" -or $firstArg -eq "-testapi") {
     # 获取所有配置的模型（包括云端和本地）
     $allModels = @()
     $modelConfigs = @{}  # key: 模型名, value: API配置
@@ -2151,8 +2164,21 @@ if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $fir
 }
 
 # 获取用户输入（确保正确处理参数）
+# 注意：如果第一个参数是预设指令，已经在上面处理过了，这里不应该再处理
+# 但如果参数被包装函数拼接成了字符串（如 "-testapi"），需要重新解析
 $userQuery = if ($args.Count -eq 1 -and $args[0] -is [string]) {
-    $args[0]
+    $arg = $args[0]
+    # 如果参数是单个字符串且以 - 开头，可能是预设指令，需要检查
+    if ($arg -match '^-\w+') {
+        # 尝试提取第一个参数（可能是预设指令）
+        $parts = $arg -split '\s+', 2
+        $possibleFirstArg = $parts[0]
+        # 如果这个参数是预设指令，应该已经在上面处理过了
+        # 这里只处理非预设指令的情况
+        $arg
+    } else {
+        $arg
+    }
 } elseif ($args.Count -gt 0) {
     $args -join " "
 } else {
