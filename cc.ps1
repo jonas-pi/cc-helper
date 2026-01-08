@@ -479,11 +479,11 @@ if ($firstArg -eq "list" -or $firstArg -eq "-list" -or $firstArg -eq "--list") {
         Write-Host ""
     }
     
-    # 显示本地模型
-    if ($localModels.Count -gt 0) {
+    # 显示本地模型（显示所有已下载的模型，不仅仅是 CONFIGURED_MODELS 中的）
+    if ($ollamaModels.Count -gt 0) {
         Write-Host "本地已下载的模型:" -ForegroundColor Gray
         Write-Host ""
-        foreach ($model in $localModels) {
+        foreach ($model in $ollamaModels) {
             if ($model -eq $MODEL -and $API_TYPE -eq "ollama") {
                 Write-Host "  $BULLET_CURRENT " -NoNewline
                 Write-Host "$model" -NoNewline -ForegroundColor Green
@@ -496,7 +496,7 @@ if ($firstArg -eq "list" -or $firstArg -eq "-list" -or $firstArg -eq "--list") {
     }
     
     # 如果没有模型
-    if ($apiModels.Count -eq 0 -and $localModels.Count -eq 0) {
+    if ($apiModels.Count -eq 0 -and $ollamaModels.Count -eq 0) {
         Write-Host "未找到已配置的模型" -ForegroundColor Yellow
         Write-Host "使用 " -NoNewline -ForegroundColor Gray
         Write-Host "cc -add" -NoNewline -ForegroundColor Green
