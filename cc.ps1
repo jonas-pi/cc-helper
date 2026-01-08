@@ -1895,22 +1895,12 @@ if ($firstArg -eq "-setup" -or $firstArg -eq "setup") {
 
 # CC 包装函数（修复参数传递，正确处理以 - 开头的参数）
 function cc {
-    param([string]`$arg1)
-    
-    # 收集所有参数（包括以 - 开头的参数）
-    `$allArgs = @()
-    if (`$args.Count -gt 0) {
-        `$allArgs = `$args
-    }
-    if (`$arg1) {
-        `$allArgs = @(`$arg1) + `$allArgs
-    }
-    
-    if (`$allArgs.Count -eq 0) {
+    # 使用 $args 获取所有参数，避免 PowerShell 参数解析冲突
+    if (`$args.Count -eq 0) {
         & "`$env:USERPROFILE\cc.ps1"
     } else {
-        # 将所有参数作为字符串传递，避免 PowerShell 参数解析冲突
-        `$query = `$allArgs -join " "
+        # 将所有参数作为字符串传递
+        `$query = `$args -join " "
         & "`$env:USERPROFILE\cc.ps1" `$query
     }
 }
