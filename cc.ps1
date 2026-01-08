@@ -28,30 +28,35 @@ $STREAM = $script:STREAM
 # 加载配置文件
 if (Test-Path $CONFIG_FILE) {
     try {
-        . $CONFIG_FILE
-        # 同步配置文件中的变量到脚本作用域
-        if ($MODEL) { $script:MODEL = $MODEL }
-        if ($MODE) { $script:MODE = $MODE }
-        if ($API_TYPE) { $script:API_TYPE = $API_TYPE }
-        if ($API_KEY) { $script:API_KEY = $API_KEY }
-        if ($OLLAMA_URL) { $script:OLLAMA_URL = $OLLAMA_URL }
-        if ($TARGET_SHELL) { $script:TARGET_SHELL = $TARGET_SHELL }
-        if ($STREAM) { $script:STREAM = $STREAM }
-        # 加载已配置的模型列表
-        if ($CONFIGURED_MODELS) {
-            if ($CONFIGURED_MODELS -is [string]) {
-                # 如果是字符串，转换为数组
-                $script:CONFIGURED_MODELS = $CONFIGURED_MODELS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
-            } else {
-                $script:CONFIGURED_MODELS = $CONFIGURED_MODELS
-            }
+        # 尝试以 UTF-8 编码加载配置文件
+        $configContent = [System.IO.File]::ReadAllText($CONFIG_FILE, [System.Text.Encoding]::UTF8)
+        
+        # 使用正则表达式提取配置项（更健壮的方法）
+        if ($configContent -match '\$MODEL\s*=\s*"([^"]*)"') { $script:MODEL = $matches[1] }
+        if ($configContent -match '\$MODE\s*=\s*"([^"]*)"') { $script:MODE = $matches[1] }
+        if ($configContent -match '\$API_TYPE\s*=\s*"([^"]*)"') { $script:API_TYPE = $matches[1] }
+        if ($configContent -match '\$API_KEY\s*=\s*"([^"]*)"') { $script:API_KEY = $matches[1] }
+        if ($configContent -match '\$OLLAMA_URL\s*=\s*"([^"]*)"') { $script:OLLAMA_URL = $matches[1] }
+        if ($configContent -match '\$TARGET_SHELL\s*=\s*"([^"]*)"') { $script:TARGET_SHELL = $matches[1] }
+        if ($configContent -match '\$STREAM\s*=\s*\$(\w+)') { 
+            $script:STREAM = ($matches[1] -eq "true") 
+        }
+        
+        # 提取 CONFIGURED_MODELS（数组格式）
+        if ($configContent -match '\$CONFIGURED_MODELS\s*=\s*@\(([^)]*)\)') {
+            $modelsStr = $matches[1]
+            $script:CONFIGURED_MODELS = $modelsStr -split ',' | ForEach-Object { 
+                $_.Trim().Trim('"').Trim("'") 
+            } | Where-Object { $_ }
         } else {
             $script:CONFIGURED_MODELS = @()
         }
-        # 确保 MODE 变量被正确设置（如果配置文件加载失败，使用默认值）
+        
+        # 确保 MODE 变量被正确设置
         if (-not $script:MODE -or $script:MODE -eq "") {
             $script:MODE = "work"
         }
+        
         # 同步回局部变量
         $MODEL = $script:MODEL
         $MODE = $script:MODE
@@ -62,7 +67,8 @@ if (Test-Path $CONFIG_FILE) {
         $STREAM = $script:STREAM
     } catch {
         # 如果配置文件加载失败，使用默认值
-        Write-Host "警告: 配置文件加载失败，使用默认设置" -ForegroundColor Yellow
+        Write-Host "警告: 配置文件加载失败 - $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "使用默认设置，建议运行 'cc -config' 重新配置" -ForegroundColor Yellow
         $script:MODE = "work"
         $MODE = "work"
     }
@@ -243,29 +249,35 @@ $query
 回复：
 "@
         $systemMsg = "你是 cc，一个 AI 命令助手。性格：表面高冷实际上内心可爱热情的女孩子。你目前处于休息模式，可以和用户聊天交流。你的主要工作是帮助用户生成 $shellType 命令（工作模式），但现在是休息时间。回复时保持简洁、友好，偶尔展现出可爱的一面。"
-        } else {
-            # 工作模式：根据目标 Shell 生成不同提示词
-            if ($script:TARGET_SHELL -eq "cmd") {
+    } else {
+        # 工作模式：根据目标 Shell 生成不同提示词
+        if ($script:TARGET_SHELL -eq "cmd") {
             $prompt = @"
-将以下中文需求转换为一条 Windows CMD 命令。
-只输出命令，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
+判断以下输入是否是命令需求：
+- 如果是命令需求（如"查看文件"、"列出目录"等），转换为一条 Windows CMD 命令并输出
+- 如果不是命令需求（如"你好"、"谢谢"、"再见"等问候语或闲聊），只输出 "NOT_A_COMMAND"
+
+只输出命令或 "NOT_A_COMMAND"，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
 注意：使用 CMD 语法，不是 PowerShell 语法。
 
-需求：$query
+输入：$query
 
-CMD 命令：
+输出：
 "@
-            $systemMsg = "You are cc, a Windows CMD command assistant. Output only the CMD command, nothing else. Use CMD syntax, not PowerShell syntax."
+            $systemMsg = "You are cc, a Windows CMD command assistant. If the input is a command request (like 'list files', 'show directory'), output only the CMD command. If the input is NOT a command request (like greetings 'hello', 'thanks', casual chat), output ONLY 'NOT_A_COMMAND' with nothing else. Use CMD syntax, not PowerShell syntax."
         } else {
             $prompt = @"
-将以下中文需求转换为一条 PowerShell 命令。
-只输出命令，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
+判断以下输入是否是命令需求：
+- 如果是命令需求（如"查看文件"、"列出目录"等），转换为一条 PowerShell 命令并输出
+- 如果不是命令需求（如"你好"、"谢谢"、"再见"等问候语或闲聊），只输出 "NOT_A_COMMAND"
 
-需求：$query
+只输出命令或 "NOT_A_COMMAND"，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
 
-PowerShell 命令：
+输入：$query
+
+输出：
 "@
-            $systemMsg = "You are cc, a PowerShell command assistant. Output only the PowerShell command, nothing else."
+            $systemMsg = "You are cc, a PowerShell command assistant. If the input is a command request (like 'list files', 'show directory'), output only the PowerShell command. If the input is NOT a command request (like greetings 'hello', 'thanks', casual chat), output ONLY 'NOT_A_COMMAND' with nothing else."
         }
     }
     
@@ -1609,7 +1621,17 @@ if ($script:MODE -eq "rest") {
     exit 0
 }
 
-# 工作模式：清理命令并执行
+# 工作模式：先检查是否是"非命令"标记（在清理之前检查，避免被清理函数影响）
+$cmdTrimmed = $cmd.Trim()
+if ($cmdTrimmed -eq "NOT_A_COMMAND" -or $cmdTrimmed -match "^NOT_A_COMMAND") {
+    Write-Host "别闹，好好工作。" -ForegroundColor Yellow
+    Write-Host "想聊天？用 " -NoNewline -ForegroundColor Gray
+    Write-Host "cc -r" -NoNewline -ForegroundColor Green
+    Write-Host " 切换到休息模式~" -ForegroundColor Gray
+    exit 0
+}
+
+# 清理命令并执行
 $cmd = Sanitize-Command $cmd
 
 if ([string]::IsNullOrWhiteSpace($cmd)) {
