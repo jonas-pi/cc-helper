@@ -1857,6 +1857,103 @@ if ($firstArg -eq "-del" -or $firstArg -eq "delete" -or $firstArg -eq "rm") {
     exit 0
 }
 
+# 预设指令: -setup 自动配置环境
+if ($firstArg -eq "-setup" -or $firstArg -eq "setup") {
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+    Write-Host "        CC 环境自动配置向导              " -ForegroundColor Cyan
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+    Write-Host ""
+    
+    # 创建 Profile
+    if (!(Test-Path $PROFILE)) {
+        Write-Host "[1/3] 创建 PowerShell Profile..." -ForegroundColor Yellow
+        $profileDir = Split-Path $PROFILE -Parent
+        if (!(Test-Path $profileDir)) {
+            New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
+        }
+        New-Item -ItemType File -Path $PROFILE -Force | Out-Null
+        Write-Host "  ✓ 已创建" -ForegroundColor Green
+    } else {
+        Write-Host "[1/3] PowerShell Profile 已存在" -ForegroundColor Green
+    }
+    Write-Host ""
+    
+    # 添加 UTF-8 编码 + 包装函数
+    Write-Host "[2/3] 配置 UTF-8 编码和参数修复..." -ForegroundColor Yellow
+    
+    $setupCode = @"
+
+# ============================================
+# CC 命令助手配置（由 cc -setup 自动生成）
+# ============================================
+
+# UTF-8 编码
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::InputEncoding = [System.Text.Encoding]::UTF8
+`$OutputEncoding = [System.Text.Encoding]::UTF8
+`$PSDefaultParameterValues['*:Encoding'] = 'utf8'
+
+# CC 包装函数（修复参数传递，正确处理以 - 开头的参数）
+function cc {
+    param([string]`$arg1)
+    
+    # 收集所有参数（包括以 - 开头的参数）
+    `$allArgs = @()
+    if (`$args.Count -gt 0) {
+        `$allArgs = `$args
+    }
+    if (`$arg1) {
+        `$allArgs = @(`$arg1) + `$allArgs
+    }
+    
+    if (`$allArgs.Count -eq 0) {
+        & "`$env:USERPROFILE\cc.ps1"
+    } else {
+        # 将所有参数作为字符串传递，避免 PowerShell 参数解析冲突
+        `$query = `$allArgs -join " "
+        & "`$env:USERPROFILE\cc.ps1" `$query
+    }
+}
+"@
+    
+    $profileContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
+    if (!$profileContent -or !($profileContent -match "CC 命令助手配置")) {
+        Add-Content -Path $PROFILE -Value $setupCode
+        Write-Host "  ✓ 已配置" -ForegroundColor Green
+    } else {
+        # 更新现有的包装函数
+        $profileContent = $profileContent -replace '(?s)function cc\s*\{[^}]+\}', $setupCode.Split("`n")[-10..-1] -join "`n"
+        if ($profileContent -notmatch "function cc") {
+            Add-Content -Path $PROFILE -Value ($setupCode.Split("`n")[-10..-1] -join "`n")
+        } else {
+            Write-Host "  ✓ 配置已存在" -ForegroundColor Green
+        }
+    }
+    Write-Host ""
+    
+    # 立即应用
+    Write-Host "[3/3] 应用配置到当前会话..." -ForegroundColor Yellow
+    try {
+        . $PROFILE
+        Write-Host "  ✓ 已应用" -ForegroundColor Green
+    } catch {
+        Write-Host "  ⚠ 应用配置时出现警告: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "  ℹ 请手动运行: . `$PROFILE" -ForegroundColor Gray
+    }
+    Write-Host ""
+    
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
+    Write-Host "           配置完成！                   " -ForegroundColor Green
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "现在可以直接使用中文了（无需引号）：" -ForegroundColor Gray
+    Write-Host "  cc 你好" -ForegroundColor Cyan
+    Write-Host "  cc 列出当前目录" -ForegroundColor Cyan
+    Write-Host "  cc -r" -ForegroundColor Cyan
+    Write-Host ""
+    exit 0
+}
+
 # 帮助信息
 if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $firstArg -eq "-help" -or $firstArg -eq "help") {
     if ($isGBK) {
