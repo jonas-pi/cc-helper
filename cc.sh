@@ -1142,12 +1142,200 @@ EOF
     
     # 预设指令: -del 删除模型
     if [ "$first_arg" = "-del" ] || [ "$first_arg" = "delete" ] || [ "$first_arg" = "rm" ]; then
-        local models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
-        
-        if [ -z "$models" ]; then
-            echo -e "\033[1;31mERROR: 未找到已安装的模型\033[0m"
-            exit 1
+        # 从配置文件读取已配置的模型列表
+        local configured_models_array=()
+        if [ -n "$CONFIGURED_MODELS" ]; then
+            IFS=',' read -ra configured_models_array <<< "$CONFIGURED_MODELS"
         fi
+        
+        # 获取本地已安装的模型
+        local ollama_models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+        
+        # 分离云端 API 模型和本地模型
+        local api_models=()
+        local local_models=()
+        
+        for model in "${configured_models_array[@]}"; do
+            if echo "$ollama_models" | grep -q "^${model}$"; then
+                local_models+=("$model")
+            else
+                api_models+=("$model")
+            fi
+        done
+        
+        # 合并所有模型用于显示
+        local all_models=()
+        local model_types=()  # 记录每个模型是 "API" 还是 "本地"
+        
+        for model in "${api_models[@]}"; do
+            all_models+=("$model")
+            model_types+=("API")
+        done
+        
+        for model in "${local_models[@]}"; do
+            all_models+=("$model")
+            model_types+=("本地")
+        done
+        
+        if [ ${#all_models[@]} -eq 0 ]; then
+            echo -e "\033[0;33m未找到已配置的模型\033[0m"
+            exit 0
+        fi
+        
+        echo -e "\033[0;37m已配置的模型:\033[0m"
+        echo ""
+        local i=1
+        for idx in "${!all_models[@]}"; do
+            local model="${all_models[$idx]}"
+            local type="${model_types[$idx]}"
+            if [ "$model" = "$MODEL" ]; then
+                echo -e "  $i. \033[1;32m$model\033[0m [$type] \033[1;33m(当前使用)\033[0m"
+            else
+                echo -e "  $i. $model [$type]"
+            fi
+            i=$((i + 1))
+        done
+        
+        echo ""
+        echo -e "\033[0;36m  0. 删除所有模型\033[0m"
+        echo ""
+        echo -ne "\033[0;33m请选择要删除的模型 (序号，多个用空格分隔，0=删除所有): \033[0m"
+        read -r choices < /dev/tty
+        
+        # 处理删除所有
+        if [ "$choices" = "0" ]; then
+            echo ""
+            echo -e "\033[1;31m警告: 将删除所有已配置的模型！\033[0m"
+            echo -e "\033[0;33m  - 云端 API 模型: 将从配置文件中清除\033[0m"
+            echo -e "\033[0;33m  - 本地模型: 将删除模型文件\033[0m"
+            echo ""
+            echo -ne "\033[0;33m确认删除所有模型? [y/n] \033[0m"
+            read -r confirm < /dev/tty
+            if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+                echo -e "\033[0;37m已取消\033[0m"
+                exit 0
+            fi
+            
+            local deleted_count=0
+            local failed_count=0
+            
+            # 删除所有本地模型
+            for model in "${local_models[@]}"; do
+                echo -e "\033[0;37m正在删除本地模型 $model...\033[0m"
+                if ollama rm "$model" 2>/dev/null; then
+                    echo -e "  \033[1;32m✓\033[0m 已删除本地模型: $model"
+                    deleted_count=$((deleted_count + 1))
+                else
+                    echo -e "  \033[1;31m✗\033[0m 删除失败: $model"
+                    failed_count=$((failed_count + 1))
+                fi
+            done
+            
+            # 清除所有配置（包括云端 API 模型和本地模型的配置）
+            CONFIGURED_MODELS=""
+            
+            # 更新配置文件
+            if [ -f "$CONFIG_FILE" ]; then
+                # 清空 CONFIGURED_MODELS
+                if grep -q "^CONFIGURED_MODELS=" "$CONFIG_FILE" 2>/dev/null; then
+                    sed -i "s/^CONFIGURED_MODELS=.*/CONFIGURED_MODELS=\"\"/" "$CONFIG_FILE"
+                else
+                    echo "CONFIGURED_MODELS=\"\"" >> "$CONFIG_FILE"
+                fi
+                
+                # 删除所有模型的 API 配置
+                sed -i '/^MODEL_API_CONFIG_/d' "$CONFIG_FILE"
+            fi
+            
+            echo ""
+            echo -e "\033[1;32m✓\033[0m 已清除所有模型配置"
+            echo -e "  删除成功: $deleted_count 个本地模型"
+            if [ $failed_count -gt 0 ]; then
+                echo -e "  删除失败: $failed_count 个模型"
+            fi
+            exit 0
+        fi
+        
+        # 处理单个或多个模型删除
+        local deleted_models=()
+        for choice in $choices; do
+            local idx=$((choice - 1))
+            if [ $idx -lt 0 ] || [ $idx -ge ${#all_models[@]} ]; then
+                echo -e "\033[1;31m无效序号: $choice\033[0m"
+                continue
+            fi
+            
+            local selected="${all_models[$idx]}"
+            local selected_type="${model_types[$idx]}"
+            
+            if [ "$selected" = "$MODEL" ]; then
+                echo ""
+                echo -e "\033[1;33m警告: $selected 是当前使用的模型\033[0m"
+                echo -ne "\033[0;33m确认删除? [y/n] \033[0m"
+                read -r confirm < /dev/tty
+                if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+                    echo -e "\033[0;37m跳过 $selected\033[0m"
+                    continue
+                fi
+            fi
+            
+            if [ "$selected_type" = "本地" ]; then
+                # 删除本地模型
+                echo ""
+                echo -e "\033[0;37m正在删除本地模型 $selected...\033[0m"
+                if ollama rm "$selected" 2>/dev/null; then
+                    echo -e "  \033[1;32m✓\033[0m 已删除本地模型: $selected"
+                    deleted_models+=("$selected")
+                else
+                    echo -e "  \033[1;31m✗\033[0m 删除失败: $selected"
+                fi
+            else
+                # 云端 API 模型，只从配置中移除
+                echo ""
+                echo -e "\033[0;37m正在清除 API 模型配置 $selected...\033[0m"
+                deleted_models+=("$selected")
+            fi
+        done
+        
+        # 更新配置文件：从 CONFIGURED_MODELS 中移除已删除的模型
+        if [ ${#deleted_models[@]} -gt 0 ]; then
+            local new_array=()
+            for model in "${configured_models_array[@]}"; do
+                local found=0
+                for deleted in "${deleted_models[@]}"; do
+                    if [ "$model" = "$deleted" ]; then
+                        found=1
+                        break
+                    fi
+                done
+                if [ $found -eq 0 ]; then
+                    new_array+=("$model")
+                fi
+            done
+            CONFIGURED_MODELS=$(IFS=','; echo "${new_array[*]}")
+            
+            # 更新配置文件
+            if [ -f "$CONFIG_FILE" ]; then
+                if grep -q "^CONFIGURED_MODELS=" "$CONFIG_FILE" 2>/dev/null; then
+                    sed -i "s/^CONFIGURED_MODELS=.*/CONFIGURED_MODELS=\"$CONFIGURED_MODELS\"/" "$CONFIG_FILE"
+                else
+                    echo "CONFIGURED_MODELS=\"$CONFIGURED_MODELS\"" >> "$CONFIG_FILE"
+                fi
+                
+                # 删除已删除模型的 API 配置
+                for deleted_model in "${deleted_models[@]}"; do
+                    local safe_model_name=$(echo "$deleted_model" | sed 's/[^a-zA-Z0-9_]/_/g')
+                    sed -i "/^MODEL_API_CONFIG_${safe_model_name}=/d" "$CONFIG_FILE"
+                done
+            fi
+            
+            echo ""
+            echo -e "\033[1;32m✓\033[0m 已更新配置文件"
+        fi
+        
+        exit 0
+    fi
+
         
         echo -e "\033[0;37m已安装的模型:\033[0m"
         local i=1
