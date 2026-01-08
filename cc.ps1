@@ -1074,41 +1074,37 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
     Write-Host "  当前模型: " -NoNewline; Write-Host "$script:MODEL" -ForegroundColor Green
     Write-Host ""
     
-    $allModels = @()
-    $modelLabels = @()
-    
-    # 1. 显示已配置的云端 API 模型（如果当前是云端 API）
-    if ($script:API_TYPE -ne "ollama") {
-        $configuredModels = $script:CONFIGURED_MODELS
-        if ($null -eq $configuredModels) {
-            $configuredModels = @()
-        }
-        
-        # 如果当前模型不在列表中，添加它
-        if ($script:MODEL -and $configuredModels -notcontains $script:MODEL) {
-            $configuredModels += $script:MODEL
-        }
-        
-        if ($configuredModels.Count -gt 0) {
-            Write-Host "已配置的 API 模型:" -ForegroundColor Gray
-            for ($i = 0; $i -lt $configuredModels.Count; $i++) {
-                $modelName = $configuredModels[$i]
-                $allModels += $modelName
-                $modelLabels += "API: $modelName"
-                $currentMark = if ($modelName -eq $script:MODEL) { " (当前)" } else { "" }
-                if ($modelName -eq $script:MODEL) {
-                    Write-Host "  $($allModels.Count). " -NoNewline
-                    Write-Host "$modelName" -ForegroundColor Green -NoNewline
-                    Write-Host "$currentMark"
-                } else {
-                    Write-Host "  $($allModels.Count). $modelName$currentMark"
+    # 加载模型到 API 的映射关系
+    $modelApiMap = @{}
+    if (Test-Path $CONFIG_FILE) {
+        $configContent = [System.IO.File]::ReadAllText($CONFIG_FILE, [System.Text.Encoding]::UTF8)
+        # 解析 MODEL_API_MAP（格式：MODEL_API_MAP = @{"model1"="api1";"model2"="api2"}）
+        if ($configContent -match '\$MODEL_API_MAP\s*=\s*@\{([^}]*)\}') {
+            $mapContent = $matches[1]
+            $mapContent -split ';' | ForEach-Object {
+                if ($_ -match '"([^"]+)"\s*=\s*"([^"]+)"') {
+                    $modelApiMap[$matches[1]] = $matches[2]
                 }
             }
-            Write-Host ""
         }
     }
     
-    # 2. 显示本地已下载的 Ollama 模型
+    $allModels = @()
+    $modelTypes = @()  # 记录每个模型是 "API" 还是 "本地"
+    
+    # 1. 显示已配置的云端 API 模型（保持原有顺序）
+    $configuredModels = $script:CONFIGURED_MODELS
+    if ($null -eq $configuredModels) {
+        $configuredModels = @()
+    }
+    
+    # 如果当前模型不在列表中，添加它
+    if ($script:MODEL -and $script:API_TYPE -ne "ollama" -and $configuredModels -notcontains $script:MODEL) {
+        $configuredModels += $script:MODEL
+    }
+    
+    # 过滤出已配置的 API 模型（排除本地模型）
+    $apiModels = @()
     $ollamaModels = @()
     $modelList = ollama list 2>$null
     if ($modelList) {
@@ -1117,12 +1113,36 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
         } | Where-Object { $_ -ne "" }
     }
     
+    foreach ($model in $configuredModels) {
+        if ($ollamaModels -notcontains $model) {
+            $apiModels += $model
+        }
+    }
+    
+    if ($apiModels.Count -gt 0) {
+        Write-Host "已配置的 API 模型:" -ForegroundColor Gray
+        foreach ($modelName in $apiModels) {
+            $allModels += $modelName
+            $modelTypes += "API"
+            $currentMark = if ($modelName -eq $script:MODEL -and $script:API_TYPE -ne "ollama") { " (当前)" } else { "" }
+            if ($modelName -eq $script:MODEL -and $script:API_TYPE -ne "ollama") {
+                Write-Host "  $($allModels.Count). " -NoNewline
+                Write-Host "$modelName" -ForegroundColor Green -NoNewline
+                Write-Host "$currentMark"
+            } else {
+                Write-Host "  $($allModels.Count). $modelName$currentMark"
+            }
+        }
+        Write-Host ""
+    }
+    
+    # 2. 显示本地已下载的 Ollama 模型（保持原有顺序）
     if ($ollamaModels.Count -gt 0) {
         Write-Host "本地已下载的模型:" -ForegroundColor Gray
         foreach ($model in $ollamaModels) {
             if ($allModels -notcontains $model) {
                 $allModels += $model
-                $modelLabels += "本地: $model"
+                $modelTypes += "本地"
                 $currentMark = if ($model -eq $script:MODEL -and $script:API_TYPE -eq "ollama") { " (当前)" } else { "" }
                 if ($model -eq $script:MODEL -and $script:API_TYPE -eq "ollama") {
                     Write-Host "  $($allModels.Count). " -NoNewline
@@ -1179,16 +1199,73 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
         exit 1
     }
     
-    # 判断选择的模型是本地模型还是需要配置 API
-    $isLocalModel = $ollamaModels -contains $selected
+    # 判断选择的模型是本地模型还是 API 模型
+    $selectedIndex = $allModels.IndexOf($selected)
+    $isLocalModel = ($selectedIndex -ge 0 -and $modelTypes[$selectedIndex] -eq "本地") -or ($ollamaModels -contains $selected)
+    
+    # 保存当前 API 配置（用于新模型）
+    $currentApiConfig = @{
+        API_TYPE = $script:API_TYPE
+        OLLAMA_URL = $script:OLLAMA_URL
+        API_KEY = $script:API_KEY
+    }
+    
+    # 加载已保存的模型 API 配置（使用模型名称映射）
+    $savedApiConfigs = @{}  # key: 原始模型名, value: API配置
+    $modelNameMap = @{}     # key: 安全变量名, value: 原始模型名
+    if (Test-Path $CONFIG_FILE) {
+        $configContent = [System.IO.File]::ReadAllText($CONFIG_FILE, [System.Text.Encoding]::UTF8)
+        # 解析每个模型的 API 配置（格式：MODEL_API_CONFIG_modelname = @{"API_TYPE"="...";"OLLAMA_URL"="...";"API_KEY"="..."}）
+        $configContent -split "`n" | ForEach-Object {
+            if ($_ -match '\$MODEL_API_CONFIG_([^=]+)\s*=\s*@\{([^}]+)\}') {
+                $safeModelName = $matches[1].Trim()
+                $configStr = $matches[2]
+                $apiConfig = @{}
+                if ($configStr -match 'API_TYPE\s*=\s*"([^"]*)"') { $apiConfig.API_TYPE = $matches[1] }
+                if ($configStr -match 'OLLAMA_URL\s*=\s*"([^"]*)"') { $apiConfig.OLLAMA_URL = $matches[1] }
+                if ($configStr -match 'API_KEY\s*=\s*"([^"]*)"') { $apiConfig.API_KEY = $matches[1] }
+                
+                # 通过 CONFIGURED_MODELS 找到对应的原始模型名
+                if ($configContent -match '\$CONFIGURED_MODELS\s*=\s*@\(([^)]*)\)') {
+                    $modelsStr = $matches[1]
+                    $models = $modelsStr -split ',' | ForEach-Object { $_.Trim().Trim('"').Trim("'") } | Where-Object { $_ }
+                    foreach ($model in $models) {
+                        $modelSafeName = $model -replace '[^a-zA-Z0-9_]', '_'
+                        if ($modelSafeName -eq $safeModelName) {
+                            $savedApiConfigs[$model] = $apiConfig
+                            $modelNameMap[$safeModelName] = $model
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    # 根据选择的模型类型设置 API 配置
     if ($isLocalModel) {
-        # 切换到本地模型，需要将 API_TYPE 改为 ollama
+        # 切换到本地模型，使用 ollama
         $script:API_TYPE = "ollama"
         $script:OLLAMA_URL = "http://127.0.0.1:11434/v1"
         $script:API_KEY = ""
+    } elseif ($savedApiConfigs.ContainsKey($selected)) {
+        # 恢复已保存的 API 配置
+        $savedConfig = $savedApiConfigs[$selected]
+        $script:API_TYPE = $savedConfig.API_TYPE
+        $script:OLLAMA_URL = $savedConfig.OLLAMA_URL
+        $script:API_KEY = $savedConfig.API_KEY
+    } else {
+        # 新模型，使用当前 API 配置（保持当前配置）
     }
     
-    # 更新已配置的模型列表
+    # 保存该模型的 API 配置
+    $savedApiConfigs[$selected] = @{
+        API_TYPE = $script:API_TYPE
+        OLLAMA_URL = $script:OLLAMA_URL
+        API_KEY = $script:API_KEY
+    }
+    
+    # 更新已配置的模型列表（保持顺序）
     if (-not $script:CONFIGURED_MODELS) {
         $script:CONFIGURED_MODELS = @()
     }
@@ -1196,13 +1273,34 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
         $script:CONFIGURED_MODELS += $selected
     }
     
-    # 更新配置文件（包括已配置的模型列表）
+    # 更新配置文件（包括已配置的模型列表和每个模型的 API 配置）
     if (Test-Path $CONFIG_FILE) {
         $content = Get-Content $CONFIG_FILE -Raw
+        
+        # 更新 MODEL
         if ($content -match '(?m)^\s*\$MODEL\s*=') {
             $content = $content -replace '(?m)^\s*\$MODEL\s*=\s*".*"', "`$MODEL = `"$selected`""
         } else {
             $content = $content.TrimEnd() + "`n`$MODEL = `"$selected`""
+        }
+        
+        # 更新 API_TYPE、OLLAMA_URL、API_KEY
+        if ($content -match '(?m)^\s*\$API_TYPE\s*=') {
+            $content = $content -replace '(?m)^\s*\$API_TYPE\s*=\s*".*"', "`$API_TYPE = `"$script:API_TYPE`""
+        } else {
+            $content = $content.TrimEnd() + "`n`$API_TYPE = `"$script:API_TYPE`""
+        }
+        
+        if ($content -match '(?m)^\s*\$OLLAMA_URL\s*=') {
+            $content = $content -replace '(?m)^\s*\$OLLAMA_URL\s*=\s*".*"', "`$OLLAMA_URL = `"$script:OLLAMA_URL`""
+        } else {
+            $content = $content.TrimEnd() + "`n`$OLLAMA_URL = `"$script:OLLAMA_URL`""
+        }
+        
+        if ($content -match '(?m)^\s*\$API_KEY\s*=') {
+            $content = $content -replace '(?m)^\s*\$API_KEY\s*=\s*".*"', "`$API_KEY = `"$script:API_KEY`""
+        } else {
+            $content = $content.TrimEnd() + "`n`$API_KEY = `"$script:API_KEY`""
         }
         
         # 更新已配置的模型列表
@@ -1213,6 +1311,18 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
             $content = $content.TrimEnd() + "`n`$CONFIGURED_MODELS = $modelsArrayStr"
         }
         
+        # 删除旧的模型 API 配置
+        $content = $content -replace '(?m)^\s*\$MODEL_API_CONFIG_[^\r\n]*\r?\n', ''
+        
+        # 添加所有模型的 API 配置
+        $apiConfigLines = ""
+        foreach ($modelName in $savedApiConfigs.Keys) {
+            $config = $savedApiConfigs[$modelName]
+            $safeModelName = $modelName -replace '[^a-zA-Z0-9_]', '_'
+            $apiConfigLines += "`$MODEL_API_CONFIG_$safeModelName = @{`"API_TYPE`"=`"$($config.API_TYPE)`";`"OLLAMA_URL`"=`"$($config.OLLAMA_URL)`";`"API_KEY`"=`"$($config.API_KEY)`"}`n"
+        }
+        $content = $content.TrimEnd() + "`n" + $apiConfigLines
+        
         $currentEncoding = [Console]::OutputEncoding
         if ($currentEncoding.CodePage -eq 936) {
             $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
@@ -1222,15 +1332,33 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
         [System.IO.File]::WriteAllText($CONFIG_FILE, $content, $saveEncoding)
     } else {
         $modelsArrayStr = "@(" + ($script:CONFIGURED_MODELS | ForEach-Object { "`"$_`"" }) -join "," + ")"
+        $apiConfigLines = ""
+        foreach ($modelName in $script:CONFIGURED_MODELS) {
+            if ($savedApiConfigs.ContainsKey($modelName)) {
+                $config = $savedApiConfigs[$modelName]
+                $safeModelName = $modelName -replace '[^a-zA-Z0-9_]', '_'
+                $apiConfigLines += "`$MODEL_API_CONFIG_$safeModelName = @{`"API_TYPE`"=`"$($config.API_TYPE)`";`"OLLAMA_URL`"=`"$($config.OLLAMA_URL)`";`"API_KEY`"=`"$($config.API_KEY)`"}`n"
+            }
+        }
         @"
 `$MODEL = `"$selected`"
+`$API_TYPE = `"$script:API_TYPE`"
+`$OLLAMA_URL = `"$script:OLLAMA_URL`"
+`$API_KEY = `"$script:API_KEY`"
 `$CONFIGURED_MODELS = $modelsArrayStr
+$apiConfigLines
 "@ | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
     }
     
     # 同步到脚本作用域
     $script:MODEL = $selected
     $MODEL = $selected
+    $script:API_TYPE = $script:API_TYPE
+    $API_TYPE = $script:API_TYPE
+    $script:OLLAMA_URL = $script:OLLAMA_URL
+    $OLLAMA_URL = $script:OLLAMA_URL
+    $script:API_KEY = $script:API_KEY
+    $API_KEY = $script:API_KEY
     
     Write-Host ""
     Write-Host "✓ 已切换到: $selected" -ForegroundColor Green
@@ -1280,12 +1408,61 @@ if ($firstArg -eq "-add" -or $firstArg -eq "add") {
     ollama pull $model
     if ($LASTEXITCODE -eq 0) {
         Write-Host "安装完成" -ForegroundColor Gray
-        Write-Host "是否切换到此模型? [y/n] " -ForegroundColor Yellow -NoNewline
-        $switch = Read-Host
-        if ($switch -eq "y" -or $switch -eq "Y" -or [string]::IsNullOrWhiteSpace($switch)) {
-            $scriptPath = "$env:USERPROFILE\cc.ps1"
-            $content = Get-Content $scriptPath -Raw
-            $content = $content -replace '^\$MODEL = ".*"', "`$MODEL = `"$model`""
+        
+        # 更新已配置的模型列表
+        if (-not $script:CONFIGURED_MODELS) {
+            $script:CONFIGURED_MODELS = @()
+        }
+        if ($model -and $script:CONFIGURED_MODELS -notcontains $model) {
+            $script:CONFIGURED_MODELS += $model
+        }
+        
+        # 保存模型的 API 配置（本地模型使用 ollama）
+        $savedApiConfigs = @{}
+        if (Test-Path $CONFIG_FILE) {
+            $configContent = [System.IO.File]::ReadAllText($CONFIG_FILE, [System.Text.Encoding]::UTF8)
+            $configContent -split "`n" | ForEach-Object {
+                if ($_ -match '\$MODEL_API_CONFIG_([^=]+)\s*=\s*@\{([^}]+)\}') {
+                    $modelName = $matches[1].Trim()
+                    $configStr = $matches[2]
+                    $apiConfig = @{}
+                    if ($configStr -match 'API_TYPE\s*=\s*"([^"]*)"') { $apiConfig.API_TYPE = $matches[1] }
+                    if ($configStr -match 'OLLAMA_URL\s*=\s*"([^"]*)"') { $apiConfig.OLLAMA_URL = $matches[1] }
+                    if ($configStr -match 'API_KEY\s*=\s*"([^"]*)"') { $apiConfig.API_KEY = $matches[1] }
+                    $savedApiConfigs[$modelName] = $apiConfig
+                }
+            }
+        }
+        
+        $safeModelName = $model -replace '[^a-zA-Z0-9_]', '_'
+        $savedApiConfigs[$safeModelName] = @{
+            API_TYPE = "ollama"
+            OLLAMA_URL = "http://127.0.0.1:11434/v1"
+            API_KEY = ""
+        }
+        
+        # 更新配置文件
+        if (Test-Path $CONFIG_FILE) {
+            $content = Get-Content $CONFIG_FILE -Raw
+            
+            # 更新已配置的模型列表
+            $modelsArrayStr = "@(" + ($script:CONFIGURED_MODELS | ForEach-Object { "`"$_`"" }) -join "," + ")"
+            if ($content -match '(?m)^\s*\$CONFIGURED_MODELS\s*=') {
+                $content = $content -replace '(?m)^\s*\$CONFIGURED_MODELS\s*=.*', "`$CONFIGURED_MODELS = $modelsArrayStr"
+            } else {
+                $content = $content.TrimEnd() + "`n`$CONFIGURED_MODELS = $modelsArrayStr"
+            }
+            
+            # 删除旧的模型 API 配置
+            $content = $content -replace '(?m)^\s*\$MODEL_API_CONFIG_[^\r\n]*\r?\n', ''
+            
+            # 添加所有模型的 API 配置
+            $apiConfigLines = ""
+            foreach ($modelName in $savedApiConfigs.Keys) {
+                $config = $savedApiConfigs[$modelName]
+                $apiConfigLines += "`$MODEL_API_CONFIG_$modelName = @{`"API_TYPE`"=`"$($config.API_TYPE)`";`"OLLAMA_URL`"=`"$($config.OLLAMA_URL)`";`"API_KEY`"=`"$($config.API_KEY)`"}`n"
+            }
+            $content = $content.TrimEnd() + "`n" + $apiConfigLines
             
             $currentEncoding = [Console]::OutputEncoding
             if ($currentEncoding.CodePage -eq 936) {
@@ -1293,7 +1470,59 @@ if ($firstArg -eq "-add" -or $firstArg -eq "add") {
             } else {
                 $saveEncoding = New-Object System.Text.UTF8Encoding $true
             }
-            [System.IO.File]::WriteAllText($scriptPath, $content, $saveEncoding)
+            [System.IO.File]::WriteAllText($CONFIG_FILE, $content, $saveEncoding)
+        } else {
+            $modelsArrayStr = "@(" + ($script:CONFIGURED_MODELS | ForEach-Object { "`"$_`"" }) -join "," + ")"
+            $apiConfigLines = ""
+            foreach ($modelName in $savedApiConfigs.Keys) {
+                $config = $savedApiConfigs[$modelName]
+                $apiConfigLines += "`$MODEL_API_CONFIG_$modelName = @{`"API_TYPE`"=`"$($config.API_TYPE)`";`"OLLAMA_URL`"=`"$($config.OLLAMA_URL)`";`"API_KEY`"=`"$($config.API_KEY)`"}`n"
+            }
+            @"
+`$CONFIGURED_MODELS = $modelsArrayStr
+$apiConfigLines
+"@ | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
+        }
+        
+        Write-Host "是否切换到此模型? [y/n] " -ForegroundColor Yellow -NoNewline
+        $switch = Read-Host
+        if ($switch -eq "y" -or $switch -eq "Y" -or [string]::IsNullOrWhiteSpace($switch)) {
+            # 切换到本地模型
+            $script:API_TYPE = "ollama"
+            $script:OLLAMA_URL = "http://127.0.0.1:11434/v1"
+            $script:API_KEY = ""
+            $script:MODEL = $model
+            
+            # 更新配置文件
+            if (Test-Path $CONFIG_FILE) {
+                $content = Get-Content $CONFIG_FILE -Raw
+                if ($content -match '(?m)^\s*\$MODEL\s*=') {
+                    $content = $content -replace '(?m)^\s*\$MODEL\s*=\s*".*"', "`$MODEL = `"$model`""
+                } else {
+                    $content = $content.TrimEnd() + "`n`$MODEL = `"$model`""
+                }
+                if ($content -match '(?m)^\s*\$API_TYPE\s*=') {
+                    $content = $content -replace '(?m)^\s*\$API_TYPE\s*=\s*".*"', "`$API_TYPE = `"ollama`""
+                } else {
+                    $content = $content.TrimEnd() + "`n`$API_TYPE = `"ollama`""
+                }
+                if ($content -match '(?m)^\s*\$OLLAMA_URL\s*=') {
+                    $content = $content -replace '(?m)^\s*\$OLLAMA_URL\s*=\s*".*"', "`$OLLAMA_URL = `"http://127.0.0.1:11434/v1`""
+                } else {
+                    $content = $content.TrimEnd() + "`n`$OLLAMA_URL = `"http://127.0.0.1:11434/v1`""
+                }
+                if ($content -match '(?m)^\s*\$API_KEY\s*=') {
+                    $content = $content -replace '(?m)^\s*\$API_KEY\s*=\s*".*"', "`$API_KEY = `"`""
+                }
+                
+                $currentEncoding = [Console]::OutputEncoding
+                if ($currentEncoding.CodePage -eq 936) {
+                    $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+                } else {
+                    $saveEncoding = New-Object System.Text.UTF8Encoding $true
+                }
+                [System.IO.File]::WriteAllText($CONFIG_FILE, $content, $saveEncoding)
+            }
             
             Write-Host "已切换到: $model" -ForegroundColor Gray
         }
@@ -1416,8 +1645,38 @@ if ($firstArg -eq "-config" -or $firstArg -eq "config") {
         $script:CONFIGURED_MODELS += $MODEL
     }
     
+    # 加载已保存的模型 API 配置
+    $savedApiConfigs = @{}
+    if (Test-Path $CONFIG_FILE) {
+        $configContent = [System.IO.File]::ReadAllText($CONFIG_FILE, [System.Text.Encoding]::UTF8)
+        $configContent -split "`n" | ForEach-Object {
+            if ($_ -match '\$MODEL_API_CONFIG_([^=]+)\s*=\s*@\{([^}]+)\}') {
+                $modelName = $matches[1].Trim()
+                $configStr = $matches[2]
+                $apiConfig = @{}
+                if ($configStr -match 'API_TYPE\s*=\s*"([^"]*)"') { $apiConfig.API_TYPE = $matches[1] }
+                if ($configStr -match 'OLLAMA_URL\s*=\s*"([^"]*)"') { $apiConfig.OLLAMA_URL = $matches[1] }
+                if ($configStr -match 'API_KEY\s*=\s*"([^"]*)"') { $apiConfig.API_KEY = $matches[1] }
+                $savedApiConfigs[$modelName] = $apiConfig
+            }
+        }
+    }
+    
+    # 保存当前模型的 API 配置
+    $safeModelName = $MODEL -replace '[^a-zA-Z0-9_]', '_'
+    $savedApiConfigs[$safeModelName] = @{
+        API_TYPE = $API_TYPE
+        OLLAMA_URL = $OLLAMA_URL
+        API_KEY = $API_KEY
+    }
+    
     # 保存配置
     $modelsArrayStr = "@(" + ($script:CONFIGURED_MODELS | ForEach-Object { "`"$_`"" }) -join "," + ")"
+    $apiConfigLines = ""
+    foreach ($modelName in $savedApiConfigs.Keys) {
+        $config = $savedApiConfigs[$modelName]
+        $apiConfigLines += "`$MODEL_API_CONFIG_$modelName = @{`"API_TYPE`"=`"$($config.API_TYPE)`";`"OLLAMA_URL`"=`"$($config.OLLAMA_URL)`";`"API_KEY`"=`"$($config.API_KEY)`"}`n"
+    }
     $configContent = @"
 # CC 配置文件
 # 由 cc -config 自动生成
@@ -1429,6 +1688,7 @@ if ($firstArg -eq "-config" -or $firstArg -eq "config") {
 `$MODE = "$MODE"
 `$TARGET_SHELL = "$TARGET_SHELL"
 `$CONFIGURED_MODELS = $modelsArrayStr
+$apiConfigLines
 "@
     
     $configContent | Out-File -FilePath $CONFIG_FILE -Encoding UTF8
