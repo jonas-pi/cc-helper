@@ -42,14 +42,35 @@ if (Test-Path $CONFIG_FILE) {
             $script:STREAM = ($matches[1] -eq "true") 
         }
         
-        # 提取 CONFIGURED_MODELS（数组格式）
+        # 提取 CONFIGURED_MODELS（支持数组格式和字符串格式）
         if ($configContent -match '\$CONFIGURED_MODELS\s*=\s*@\(([^)]*)\)') {
+            # PowerShell 数组格式：$CONFIGURED_MODELS = @("model1","model2")
             $modelsStr = $matches[1]
             $script:CONFIGURED_MODELS = $modelsStr -split ',' | ForEach-Object { 
                 $_.Trim().Trim('"').Trim("'") 
             } | Where-Object { $_ }
+        } elseif ($configContent -match '\$CONFIGURED_MODELS\s*=\s*"([^"]*)"') {
+            # 字符串格式（Linux 兼容）：CONFIGURED_MODELS="model1,model2"
+            $modelsStr = $matches[1]
+            if ($modelsStr) {
+                $script:CONFIGURED_MODELS = $modelsStr -split ',' | ForEach-Object { 
+                    $_.Trim().Trim('"').Trim("'") 
+                } | Where-Object { $_ }
+            } else {
+                $script:CONFIGURED_MODELS = @()
+            }
         } else {
             $script:CONFIGURED_MODELS = @()
+        }
+        
+        # 如果当前模型不在 CONFIGURED_MODELS 中，且是本地模型，自动添加
+        if ($script:MODEL -and $script:API_TYPE -eq "ollama") {
+            $modelList = ollama list 2>$null
+            if ($modelList -and $modelList -match [regex]::Escape($script:MODEL)) {
+                if ($script:CONFIGURED_MODELS -notcontains $script:MODEL) {
+                    $script:CONFIGURED_MODELS += $script:MODEL
+                }
+            }
         }
         
         # 确保 MODE 变量被正确设置
@@ -524,42 +545,46 @@ if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-tes
         } | Where-Object { $_ -ne "" }
     }
     
-    # 获取已配置的云端 API 模型及其配置
-    if ($script:CONFIGURED_MODELS) {
-        # 加载已保存的模型 API 配置
-        if (Test-Path $CONFIG_FILE) {
-            $configContent = [System.IO.File]::ReadAllText($CONFIG_FILE, [System.Text.Encoding]::UTF8)
-            
-            # 先获取所有已配置的模型列表
-            $allConfiguredModels = @()
-            if ($configContent -match '\$CONFIGURED_MODELS\s*=\s*@\(([^)]*)\)') {
-                $modelsStr = $matches[1]
+    # 加载已保存的模型 API 配置
+    if (Test-Path $CONFIG_FILE) {
+        $configContent = [System.IO.File]::ReadAllText($CONFIG_FILE, [System.Text.Encoding]::UTF8)
+        
+        # 先获取所有已配置的模型列表（支持数组和字符串格式）
+        $allConfiguredModels = @()
+        if ($configContent -match '\$CONFIGURED_MODELS\s*=\s*@\(([^)]*)\)') {
+            $modelsStr = $matches[1]
+            $allConfiguredModels = $modelsStr -split ',' | ForEach-Object { $_.Trim().Trim('"').Trim("'") } | Where-Object { $_ }
+        } elseif ($configContent -match '\$CONFIGURED_MODELS\s*=\s*"([^"]*)"') {
+            $modelsStr = $matches[1]
+            if ($modelsStr) {
                 $allConfiguredModels = $modelsStr -split ',' | ForEach-Object { $_.Trim().Trim('"').Trim("'") } | Where-Object { $_ }
             }
-            
-            # 解析每个模型的 API 配置
-            $configContent -split "`n" | ForEach-Object {
-                if ($_ -match '\$MODEL_API_CONFIG_([^=]+)\s*=\s*@\{([^}]+)\}') {
-                    $safeModelName = $matches[1].Trim()
-                    $configStr = $matches[2]
-                    $apiConfig = @{}
-                    if ($configStr -match 'API_TYPE\s*=\s*"([^"]*)"') { $apiConfig.API_TYPE = $matches[1] }
-                    if ($configStr -match 'OLLAMA_URL\s*=\s*"([^"]*)"') { $apiConfig.OLLAMA_URL = $matches[1] }
-                    if ($configStr -match 'API_KEY\s*=\s*"([^"]*)"') { $apiConfig.API_KEY = $matches[1] }
-                    
-                    # 通过 CONFIGURED_MODELS 找到对应的原始模型名
-                    foreach ($m in $allConfiguredModels) {
-                        $mSafeName = $m -replace '[^a-zA-Z0-9_]', '_'
-                        if ($mSafeName -eq $safeModelName) {
-                            $modelConfigs[$m] = $apiConfig
-                            break
-                        }
+        }
+        
+        # 解析每个模型的 API 配置
+        $configContent -split "`n" | ForEach-Object {
+            if ($_ -match '\$MODEL_API_CONFIG_([^=]+)\s*=\s*@\{([^}]+)\}') {
+                $safeModelName = $matches[1].Trim()
+                $configStr = $matches[2]
+                $apiConfig = @{}
+                if ($configStr -match 'API_TYPE\s*=\s*"([^"]*)"') { $apiConfig.API_TYPE = $matches[1] }
+                if ($configStr -match 'OLLAMA_URL\s*=\s*"([^"]*)"') { $apiConfig.OLLAMA_URL = $matches[1] }
+                if ($configStr -match 'API_KEY\s*=\s*"([^"]*)"') { $apiConfig.API_KEY = $matches[1] }
+                
+                # 通过 CONFIGURED_MODELS 找到对应的原始模型名
+                foreach ($m in $allConfiguredModels) {
+                    $mSafeName = $m -replace '[^a-zA-Z0-9_]', '_'
+                    if ($mSafeName -eq $safeModelName) {
+                        $modelConfigs[$m] = $apiConfig
+                        break
                     }
                 }
             }
         }
-        
-        # 添加云端 API 模型
+    }
+    
+    # 添加云端 API 模型（从 CONFIGURED_MODELS 中筛选）
+    if ($script:CONFIGURED_MODELS) {
         foreach ($model in $script:CONFIGURED_MODELS) {
             if ($ollamaModels -notcontains $model) {
                 $allModels += $model
@@ -567,7 +592,7 @@ if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-tes
         }
     }
     
-    # 添加本地模型（使用 ollama 配置）
+    # 添加本地模型（使用 ollama 配置，总是添加所有本地模型）
     foreach ($model in $ollamaModels) {
         if ($allModels -notcontains $model) {
             $allModels += $model
