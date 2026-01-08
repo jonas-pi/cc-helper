@@ -1062,61 +1062,11 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
     Write-Host "  当前模型: " -NoNewline; Write-Host "$script:MODEL" -ForegroundColor Green
     Write-Host ""
     
-    if ($script:API_TYPE -eq "ollama") {
-        # Ollama: 列出本地已下载的模型
-        $modelList = ollama list 2>$null
-        if (-not $modelList) {
-            Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
-            Write-Host "提示: 使用 " -NoNewline -ForegroundColor Gray
-            Write-Host "cc -add" -NoNewline -ForegroundColor Green
-            Write-Host " 安装新模型" -ForegroundColor Gray
-            exit 1
-        }
-        
-        $models = $modelList | Select-Object -Skip 1 | ForEach-Object {
-            ($_ -split '\s+')[0]
-        } | Where-Object { $_ -ne "" }
-        
-        if ($models.Count -eq 0) {
-            Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
-            Write-Host "提示: 使用 " -NoNewline -ForegroundColor Gray
-            Write-Host "cc -add" -NoNewline -ForegroundColor Green
-            Write-Host " 安装新模型" -ForegroundColor Gray
-            exit 1
-        }
-        
-        Write-Host "已安装的模型:" -ForegroundColor Gray
-        for ($i = 0; $i -lt $models.Count; $i++) {
-            if ($models[$i] -eq $script:MODEL) {
-                Write-Host "  $($i + 1). " -NoNewline
-                Write-Host "$($models[$i])" -ForegroundColor Green -NoNewline
-                Write-Host " (当前)"
-            } else {
-                Write-Host "  $($i + 1). $($models[$i])"
-            }
-        }
+    $allModels = @()
+    $modelLabels = @()
     
-        Write-Host ""
-        Write-Host "请选择模型 (序号): " -ForegroundColor Yellow -NoNewline
-        $choice = Read-Host
-        
-        $index = [int]$choice - 1
-        if ($index -lt 0 -or $index -ge $models.Count) {
-            Write-Host "无效选择" -ForegroundColor Red
-            exit 1
-        }
-        
-        $selected = $models[$index]
-        
-        # 更新已配置的模型列表（Ollama 模式下保存已下载的模型）
-        if (-not $script:CONFIGURED_MODELS) {
-            $script:CONFIGURED_MODELS = @()
-        }
-        if ($selected -and $script:CONFIGURED_MODELS -notcontains $selected) {
-            $script:CONFIGURED_MODELS += $selected
-        }
-    } else {
-        # 云端 API: 只显示已配置的模型（从配置文件读取）
+    # 1. 显示已配置的云端 API 模型（如果当前是云端 API）
+    if ($script:API_TYPE -ne "ollama") {
         $configuredModels = $script:CONFIGURED_MODELS
         if ($null -eq $configuredModels) {
             $configuredModels = @()
@@ -1127,60 +1077,111 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
             $configuredModels += $script:MODEL
         }
         
-        if ($configuredModels.Count -eq 0) {
+        if ($configuredModels.Count -gt 0) {
+            Write-Host "已配置的 API 模型:" -ForegroundColor Gray
+            for ($i = 0; $i -lt $configuredModels.Count; $i++) {
+                $modelName = $configuredModels[$i]
+                $allModels += $modelName
+                $modelLabels += "API: $modelName"
+                $currentMark = if ($modelName -eq $script:MODEL) { " (当前)" } else { "" }
+                if ($modelName -eq $script:MODEL) {
+                    Write-Host "  $($allModels.Count). " -NoNewline
+                    Write-Host "$modelName" -ForegroundColor Green -NoNewline
+                    Write-Host "$currentMark"
+                } else {
+                    Write-Host "  $($allModels.Count). $modelName$currentMark"
+                }
+            }
+            Write-Host ""
+        }
+    }
+    
+    # 2. 显示本地已下载的 Ollama 模型
+    $ollamaModels = @()
+    $modelList = ollama list 2>$null
+    if ($modelList) {
+        $ollamaModels = $modelList | Select-Object -Skip 1 | ForEach-Object {
+            ($_ -split '\s+')[0]
+        } | Where-Object { $_ -ne "" }
+    }
+    
+    if ($ollamaModels.Count -gt 0) {
+        Write-Host "本地已下载的模型:" -ForegroundColor Gray
+        foreach ($model in $ollamaModels) {
+            if ($allModels -notcontains $model) {
+                $allModels += $model
+                $modelLabels += "本地: $model"
+                $currentMark = if ($model -eq $script:MODEL -and $script:API_TYPE -eq "ollama") { " (当前)" } else { "" }
+                if ($model -eq $script:MODEL -and $script:API_TYPE -eq "ollama") {
+                    Write-Host "  $($allModels.Count). " -NoNewline
+                    Write-Host "$model" -ForegroundColor Green -NoNewline
+                    Write-Host "$currentMark"
+                } else {
+                    Write-Host "  $($allModels.Count). $model$currentMark"
+                }
+            }
+        }
+        Write-Host ""
+    }
+    
+    # 如果没有找到任何模型
+    if ($allModels.Count -eq 0) {
+        if ($script:API_TYPE -eq "ollama") {
+            Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
+            Write-Host "提示: 使用 " -NoNewline -ForegroundColor Gray
+            Write-Host "cc -add" -NoNewline -ForegroundColor Green
+            Write-Host " 安装新模型" -ForegroundColor Gray
+        } else {
             Write-Host "未找到已配置的模型" -ForegroundColor Yellow
             Write-Host "提示: 使用 " -NoNewline -ForegroundColor Gray
             Write-Host "cc -config" -NoNewline -ForegroundColor Green
             Write-Host " 配置 API 和模型" -ForegroundColor Gray
-            exit 0
         }
-        
-        Write-Host "已配置的模型:" -ForegroundColor Gray
-        for ($i = 0; $i -lt $configuredModels.Count; $i++) {
-            if ($configuredModels[$i] -eq $script:MODEL) {
-                Write-Host "  $($i + 1). " -NoNewline
-                Write-Host "$($configuredModels[$i])" -ForegroundColor Green -NoNewline
-                Write-Host " (当前)"
-            } else {
-                Write-Host "  $($i + 1). $($configuredModels[$i])"
-            }
-        }
-        
-        Write-Host ""
-        Write-Host "  0. 手动输入新模型名称" -ForegroundColor DarkGray
-        Write-Host ""
-        Write-Host "请选择 (序号) 或直接输入模型名称: " -ForegroundColor Yellow -NoNewline
-        $choice = Read-Host
-        
-        $selected = ""
-        # 检查是否是序号选择
-        if ($choice -match '^\d+$') {
-            $index = [int]$choice
-            if ($index -eq 0) {
-                $selected = Read-Host "输入模型名称"
-            } elseif ($index -gt 0 -and $index -le $configuredModels.Count) {
-                $selected = $configuredModels[$index - 1]
-            } else {
-                Write-Host "无效选择" -ForegroundColor Red
-                exit 1
-            }
+        exit 0
+    }
+    
+    Write-Host "  0. 手动输入新模型名称" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "请选择 (序号) 或直接输入模型名称: " -ForegroundColor Yellow -NoNewline
+    $choice = Read-Host
+    
+    $selected = ""
+    # 检查是否是序号选择
+    if ($choice -match '^\d+$') {
+        $index = [int]$choice
+        if ($index -eq 0) {
+            $selected = Read-Host "输入模型名称"
+        } elseif ($index -gt 0 -and $index -le $allModels.Count) {
+            $selected = $allModels[$index - 1]
         } else {
-            # 直接输入模型名称
-            $selected = $choice
-        }
-        
-        if ([string]::IsNullOrWhiteSpace($selected)) {
-            Write-Host "无效输入" -ForegroundColor Red
+            Write-Host "无效选择" -ForegroundColor Red
             exit 1
         }
-        
-        # 如果新模型不在列表中，添加到列表
-        if ($configuredModels -notcontains $selected) {
-            $configuredModels += $selected
-        }
-        
-        # 更新已配置模型列表
-        $script:CONFIGURED_MODELS = $configuredModels
+    } else {
+        # 直接输入模型名称
+        $selected = $choice
+    }
+    
+    if ([string]::IsNullOrWhiteSpace($selected)) {
+        Write-Host "无效输入" -ForegroundColor Red
+        exit 1
+    }
+    
+    # 判断选择的模型是本地模型还是需要配置 API
+    $isLocalModel = $ollamaModels -contains $selected
+    if ($isLocalModel) {
+        # 切换到本地模型，需要将 API_TYPE 改为 ollama
+        $script:API_TYPE = "ollama"
+        $script:OLLAMA_URL = "http://127.0.0.1:11434/v1"
+        $script:API_KEY = ""
+    }
+    
+    # 更新已配置的模型列表
+    if (-not $script:CONFIGURED_MODELS) {
+        $script:CONFIGURED_MODELS = @()
+    }
+    if ($selected -and $script:CONFIGURED_MODELS -notcontains $selected) {
+        $script:CONFIGURED_MODELS += $selected
     }
     
     # 更新配置文件（包括已配置的模型列表）
