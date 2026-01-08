@@ -1212,9 +1212,16 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
     
     # 加载已保存的模型 API 配置（使用模型名称映射）
     $savedApiConfigs = @{}  # key: 原始模型名, value: API配置
-    $modelNameMap = @{}     # key: 安全变量名, value: 原始模型名
     if (Test-Path $CONFIG_FILE) {
         $configContent = [System.IO.File]::ReadAllText($CONFIG_FILE, [System.Text.Encoding]::UTF8)
+        
+        # 先获取所有已配置的模型列表
+        $allConfiguredModels = @()
+        if ($configContent -match '\$CONFIGURED_MODELS\s*=\s*@\(([^)]*)\)') {
+            $modelsStr = $matches[1]
+            $allConfiguredModels = $modelsStr -split ',' | ForEach-Object { $_.Trim().Trim('"').Trim("'") } | Where-Object { $_ }
+        }
+        
         # 解析每个模型的 API 配置（格式：MODEL_API_CONFIG_modelname = @{"API_TYPE"="...";"OLLAMA_URL"="...";"API_KEY"="..."}）
         $configContent -split "`n" | ForEach-Object {
             if ($_ -match '\$MODEL_API_CONFIG_([^=]+)\s*=\s*@\{([^}]+)\}') {
@@ -1226,16 +1233,11 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
                 if ($configStr -match 'API_KEY\s*=\s*"([^"]*)"') { $apiConfig.API_KEY = $matches[1] }
                 
                 # 通过 CONFIGURED_MODELS 找到对应的原始模型名
-                if ($configContent -match '\$CONFIGURED_MODELS\s*=\s*@\(([^)]*)\)') {
-                    $modelsStr = $matches[1]
-                    $models = $modelsStr -split ',' | ForEach-Object { $_.Trim().Trim('"').Trim("'") } | Where-Object { $_ }
-                    foreach ($model in $models) {
-                        $modelSafeName = $model -replace '[^a-zA-Z0-9_]', '_'
-                        if ($modelSafeName -eq $safeModelName) {
-                            $savedApiConfigs[$model] = $apiConfig
-                            $modelNameMap[$safeModelName] = $model
-                            break
-                        }
+                foreach ($model in $allConfiguredModels) {
+                    $modelSafeName = $model -replace '[^a-zA-Z0-9_]', '_'
+                    if ($modelSafeName -eq $safeModelName) {
+                        $savedApiConfigs[$model] = $apiConfig
+                        break
                     }
                 }
             }
