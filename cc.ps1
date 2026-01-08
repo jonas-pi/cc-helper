@@ -311,6 +311,11 @@ $query
         stream = $useStream
     } | ConvertTo-Json -Depth 10
 
+    # === 调试：显示最终 prompt ===
+    Write-Host "=== 最终 Prompt ===" -ForegroundColor Cyan
+    Write-Host $prompt -ForegroundColor DarkGray
+    Write-Host "" -ForegroundColor Gray
+
     # 调用 API
     try {
         $headers = @{
