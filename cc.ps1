@@ -32,17 +32,6 @@ if (Test-Path $CONFIG_FILE) {
         # 同步配置文件中的变量到脚本作用域
         if ($MODEL) { $script:MODEL = $MODEL }
         if ($MODE) { $script:MODE = $MODE }
-        # 加载已配置的模型列表
-        if ($CONFIGURED_MODELS) {
-            if ($CONFIGURED_MODELS -is [string]) {
-                # 如果是字符串，转换为数组
-                $script:CONFIGURED_MODELS = $CONFIGURED_MODELS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
-            } else {
-                $script:CONFIGURED_MODELS = $CONFIGURED_MODELS
-            }
-        } else {
-            $script:CONFIGURED_MODELS = @()
-        }
         if ($API_TYPE) { $script:API_TYPE = $API_TYPE }
         if ($API_KEY) { $script:API_KEY = $API_KEY }
         if ($OLLAMA_URL) { $script:OLLAMA_URL = $OLLAMA_URL }
