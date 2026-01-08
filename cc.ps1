@@ -308,8 +308,12 @@ $query
             -ContentType "application/json; charset=utf-8" `
             -ErrorAction Stop
         
-        # 手动解析 UTF-8 响应
-        $responseText = [System.Text.Encoding]::UTF8.GetString($webResponse.Content)
+        # 手动解析 UTF-8 响应（从原始流读取，避免编码问题）
+        $rawStream = $webResponse.RawContentStream
+        $rawStream.Position = 0  # 确保从开始读取
+        $rawBytes = New-Object byte[] $rawStream.Length
+        $rawStream.Read($rawBytes, 0, $rawBytes.Length) | Out-Null
+        $responseText = [System.Text.Encoding]::UTF8.GetString($rawBytes)
         $response = $responseText | ConvertFrom-Json
 
         if ($response.choices -and $response.choices.Count -gt 0 -and $response.choices[0].message.content) {
@@ -519,8 +523,12 @@ if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-tes
         $endTime = Get-Date
         $duration = ($endTime - $startTime).TotalMilliseconds
         
-        # 手动解析 UTF-8 响应
-        $responseText = [System.Text.Encoding]::UTF8.GetString($testResponse.Content)
+        # 手动解析 UTF-8 响应（从原始流读取，避免编码问题）
+        $rawStream = $testResponse.RawContentStream
+        $rawStream.Position = 0  # 确保从开始读取
+        $rawBytes = New-Object byte[] $rawStream.Length
+        $rawStream.Read($rawBytes, 0, $rawBytes.Length) | Out-Null
+        $responseText = [System.Text.Encoding]::UTF8.GetString($rawBytes)
         $responseObj = $responseText | ConvertFrom-Json
         $content = $responseObj.choices[0].message.content
         
