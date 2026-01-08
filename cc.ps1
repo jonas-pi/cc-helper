@@ -253,31 +253,25 @@ $query
         # 工作模式：根据目标 Shell 生成不同提示词
         if ($script:TARGET_SHELL -eq "cmd") {
             $prompt = @"
-判断以下输入是否是命令需求：
-- 如果是命令需求（如"查看文件"、"列出目录"等），转换为一条 Windows CMD 命令并输出
-- 如果不是命令需求（如"你好"、"谢谢"、"再见"等问候语或闲聊），只输出 "NOT_A_COMMAND"
-
-只输出命令或 "NOT_A_COMMAND"，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
+将以下中文需求转换为一条 Windows CMD 命令。
+只输出命令，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
 注意：使用 CMD 语法，不是 PowerShell 语法。
 
-输入：$query
+中文需求：$query
 
-输出：
+CMD 命令：
 "@
-            $systemMsg = "You are cc, a Windows CMD command assistant. If the input is a command request (like 'list files', 'show directory'), output only the CMD command. If the input is NOT a command request (like greetings 'hello', 'thanks', casual chat), output ONLY 'NOT_A_COMMAND' with nothing else. Use CMD syntax, not PowerShell syntax."
+            $systemMsg = "You are cc, a Windows CMD command assistant. Convert the user's request into a CMD command. Output only the command, no explanations. Use CMD syntax, not PowerShell syntax."
         } else {
             $prompt = @"
-判断以下输入是否是命令需求：
-- 如果是命令需求（如"查看文件"、"列出目录"等），转换为一条 PowerShell 命令并输出
-- 如果不是命令需求（如"你好"、"谢谢"、"再见"等问候语或闲聊），只输出 "NOT_A_COMMAND"
+将以下中文需求转换为一条 PowerShell 命令。
+只输出命令，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
 
-只输出命令或 "NOT_A_COMMAND"，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
+中文需求：$query
 
-输入：$query
-
-输出：
+PowerShell 命令：
 "@
-            $systemMsg = "You are cc, a PowerShell command assistant. If the input is a command request (like 'list files', 'show directory'), output only the PowerShell command. If the input is NOT a command request (like greetings 'hello', 'thanks', casual chat), output ONLY 'NOT_A_COMMAND' with nothing else."
+            $systemMsg = "You are cc, a PowerShell command assistant. Convert the user's request into a PowerShell command. Output only the command, no explanations."
         }
     }
     
@@ -1883,17 +1877,7 @@ if ($script:MODE -eq "rest") {
     exit 0
 }
 
-# 工作模式：先检查是否是"非命令"标记（在清理之前检查，避免被清理函数影响）
-$cmdTrimmed = $cmd.Trim()
-if ($cmdTrimmed -eq "NOT_A_COMMAND" -or $cmdTrimmed -match "^NOT_A_COMMAND") {
-    Write-Host "别闹，好好工作。" -ForegroundColor Yellow
-    Write-Host "想聊天？用 " -NoNewline -ForegroundColor Gray
-    Write-Host "cc -r" -NoNewline -ForegroundColor Green
-    Write-Host " 切换到休息模式~" -ForegroundColor Gray
-    exit 0
-}
-
-# 清理命令并执行
+# 工作模式：清理命令并执行
 $cmd = Sanitize-Command $cmd
 
 if ([string]::IsNullOrWhiteSpace($cmd)) {
