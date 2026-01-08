@@ -29,6 +29,56 @@ if [ -f "$CONFIG_FILE" ]; then
     if [ -z "$CONFIGURED_MODELS" ]; then
         CONFIGURED_MODELS=""
     fi
+    
+    # 自动扫描并添加本地已安装的模型
+    local configured_models_array=()
+    if [ -n "$CONFIGURED_MODELS" ]; then
+        IFS=',' read -ra configured_models_array <<< "$CONFIGURED_MODELS"
+    fi
+    
+    local local_models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+    
+    # 将本地模型添加到 CONFIGURED_MODELS（如果不在列表中）
+    if [ -n "$local_models" ]; then
+        while IFS= read -r local_model; do
+            local found=0
+            for existing_model in "${configured_models_array[@]}"; do
+                if [ "$existing_model" = "$local_model" ]; then
+                    found=1
+                    break
+                fi
+            done
+            if [ $found -eq 0 ]; then
+                configured_models_array+=("$local_model")
+            fi
+        done <<< "$local_models"
+    fi
+    
+    # 如果当前模型不在 CONFIGURED_MODELS 中，自动添加
+    if [ -n "$MODEL" ]; then
+        local found=0
+        for existing_model in "${configured_models_array[@]}"; do
+            if [ "$existing_model" = "$MODEL" ]; then
+                found=1
+                break
+            fi
+        done
+        if [ $found -eq 0 ]; then
+            configured_models_array+=("$MODEL")
+        fi
+    fi
+    
+    # 更新 CONFIGURED_MODELS
+    CONFIGURED_MODELS=$(IFS=','; echo "${configured_models_array[*]}")
+    
+    # 如果 CONFIGURED_MODELS 有更新，保存到配置文件
+    if [ ${#configured_models_array[@]} -gt 0 ]; then
+        if grep -q "^CONFIGURED_MODELS=" "$CONFIG_FILE" 2>/dev/null; then
+            sed -i "s|^CONFIGURED_MODELS=.*|CONFIGURED_MODELS=\"$CONFIGURED_MODELS\"|" "$CONFIG_FILE"
+        else
+            echo "CONFIGURED_MODELS=\"$CONFIGURED_MODELS\"" >> "$CONFIG_FILE"
+        fi
+    fi
 fi
 
 # 检测终端编码并选择合适的字符
