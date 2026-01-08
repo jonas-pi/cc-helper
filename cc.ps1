@@ -235,31 +235,25 @@ $query
             # 工作模式：根据目标 Shell 生成不同提示词
             if ($script:TARGET_SHELL -eq "cmd") {
             $prompt = @"
-判断以下输入是否是命令需求：
-- 如果是命令需求（如"查看文件"、"列出目录"等），转换为一条 Windows CMD 命令并输出
-- 如果不是命令需求（如"你好"、"谢谢"、"再见"等问候语或闲聊），只输出 "NOT_A_COMMAND"
-
-只输出命令或 "NOT_A_COMMAND"，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
+将以下中文需求转换为一条 Windows CMD 命令。
+只输出命令，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
 注意：使用 CMD 语法，不是 PowerShell 语法。
 
-输入：$query
+需求：$query
 
-输出：
+CMD 命令：
 "@
-            $systemMsg = "You are cc, a Windows CMD command assistant. If the input is a command request (like 'list files', 'show directory'), output only the CMD command. If the input is NOT a command request (like greetings 'hello', 'thanks', casual chat), output ONLY 'NOT_A_COMMAND' with nothing else. Use CMD syntax, not PowerShell syntax."
+            $systemMsg = "You are cc, a Windows CMD command assistant. Output only the CMD command, nothing else. Use CMD syntax, not PowerShell syntax."
         } else {
             $prompt = @"
-判断以下输入是否是命令需求：
-- 如果是命令需求（如"查看文件"、"列出目录"等），转换为一条 PowerShell 命令并输出
-- 如果不是命令需求（如"你好"、"谢谢"、"再见"等问候语或闲聊），只输出 "NOT_A_COMMAND"
+将以下中文需求转换为一条 PowerShell 命令。
+只输出命令，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
 
-只输出命令或 "NOT_A_COMMAND"，不要任何解释、不要 Markdown、不要代码块、不要额外文字。
+需求：$query
 
-输入：$query
-
-输出：
+PowerShell 命令：
 "@
-            $systemMsg = "You are cc, a PowerShell command assistant. If the input is a command request (like 'list files', 'show directory'), output only the PowerShell command. If the input is NOT a command request (like greetings 'hello', 'thanks', casual chat), output ONLY 'NOT_A_COMMAND' with nothing else."
+            $systemMsg = "You are cc, a PowerShell command assistant. Output only the PowerShell command, nothing else."
         }
     }
     
@@ -316,34 +310,41 @@ $query
         $responseText = [System.Text.Encoding]::UTF8.GetString($rawBytes)
         $response = $responseText | ConvertFrom-Json
 
-        if ($response.choices -and $response.choices.Count -gt 0 -and $response.choices[0].message.content) {
-            $content = $response.choices[0].message.content
-            
-            # 确保 content 是字符串
-            if ($content -is [array]) {
-                # 如果是数组，取第一个元素或合并
-                if ($content.Count -eq 1) {
-                    $content = $content[0]
-                } else {
-                    $content = $content -join "`n"
+        if ($response.choices -and $response.choices.Count -gt 0) {
+            $message = $response.choices[0].message
+            if ($message -and $message.content) {
+                $content = $message.content
+                
+                # 确保 content 是字符串
+                if ($content -is [array]) {
+                    # 如果是数组，取第一个元素或合并
+                    if ($content.Count -eq 0) {
+                        return "ERROR: 模型返回空数组"
+                    } elseif ($content.Count -eq 1) {
+                        $content = $content[0]
+                    } else {
+                        $content = $content -join "`n"
+                    }
                 }
+                
+                # 转换为字符串
+                if ($content -isnot [string]) {
+                    $content = [string]$content
+                }
+                
+                # 清理并返回
+                $content = $content.Trim()
+                if ([string]::IsNullOrWhiteSpace($content)) {
+                    return "ERROR: 模型返回空内容"
+                }
+                
+                # 返回时确保是字符串
+                return [string]$content
+            } else {
+                return "ERROR: 模型响应中缺少 content 字段"
             }
-            
-            # 转换为字符串
-            if ($content -isnot [string]) {
-                $content = [string]$content
-            }
-            
-            # 清理并返回
-            $content = $content.Trim()
-            if ([string]::IsNullOrWhiteSpace($content)) {
-                return "ERROR: 模型返回空内容"
-            }
-            
-            # 返回时确保是字符串
-            return [string]$content
         } else {
-            return "ERROR: 模型无响应"
+            return "ERROR: 模型无响应或 choices 为空"
         }
     } catch {
         return "ERROR: $($_.Exception.Message)"
@@ -1631,17 +1632,7 @@ if ($script:MODE -eq "rest") {
     exit 0
 }
 
-# 工作模式：先检查是否是"非命令"标记（在清理之前检查，避免被清理函数影响）
-$cmdTrimmed = $cmd.Trim()
-if ($cmdTrimmed -eq "NOT_A_COMMAND" -or $cmdTrimmed -match "^NOT_A_COMMAND") {
-    Write-Host "别闹，好好工作。" -ForegroundColor Yellow
-    Write-Host "想聊天？用 " -NoNewline -ForegroundColor Gray
-    Write-Host "cc -r" -NoNewline -ForegroundColor Green
-    Write-Host " 切换到休息模式~" -ForegroundColor Gray
-    exit 0
-}
-
-# 清理命令并执行
+# 工作模式：清理命令并执行
 $cmd = Sanitize-Command $cmd
 
 if ([string]::IsNullOrWhiteSpace($cmd)) {
