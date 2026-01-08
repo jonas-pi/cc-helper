@@ -777,19 +777,42 @@ main() {
                 if [ $index -eq 0 ]; then
                     echo -ne "\033[0;33m输入模型名称: \033[0m"
                     read -r selected < /dev/tty
+                    if [ -z "$selected" ]; then
+                        echo -e "\033[1;31mERROR: 模型名称不能为空\033[0m"
+                        exit 1
+                    fi
                 elif [ $index -gt 0 ] && [ $index -le ${#configured_models_array[@]} ]; then
                     selected="${configured_models_array[$((index - 1))]}"
                 else
-                    echo -e "\033[1;31m无效选择\033[0m"
+                    echo -e "\033[1;31mERROR: 无效的序号，请输入 0-${#configured_models_array[@]} 之间的数字\033[0m"
                     exit 1
                 fi
             else
-                # 直接输入模型名称
-                selected="$choice"
+                # 直接输入模型名称，验证是否为空
+                local input_model=$(echo "$choice" | xargs)
+                if [ -z "$input_model" ]; then
+                    echo -e "\033[1;31mERROR: 模型名称不能为空\033[0m"
+                    exit 1
+                fi
+                # 检查是否是已知模型
+                local found=0
+                for m in "${configured_models_array[@]}"; do
+                    if [ "$m" = "$input_model" ]; then
+                        found=1
+                        break
+                    fi
+                done
+                if [ $found -eq 1 ]; then
+                    selected="$input_model"
+                else
+                    # 允许输入新模型名称（可能是新的 API 模型）
+                    selected="$input_model"
+                    echo -e "\033[1;33m提示: 将使用新模型名称 '$selected'，如果这是 API 模型，请确保已正确配置 API\033[0m"
+                fi
             fi
             
             if [ -z "$selected" ]; then
-                echo -e "\033[1;31m无效输入\033[0m"
+                echo -e "\033[1;31mERROR: 无效输入\033[0m"
                 exit 1
             fi
             

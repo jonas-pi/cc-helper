@@ -1176,20 +1176,37 @@ if ($firstArg -eq "-change" -or $firstArg -eq "change") {
     if ($choice -match '^\d+$') {
         $index = [int]$choice
         if ($index -eq 0) {
-            $selected = Read-Host "输入模型名称"
+            Write-Host "输入模型名称: " -ForegroundColor Yellow -NoNewline
+            $selected = Read-Host
+            if ([string]::IsNullOrWhiteSpace($selected)) {
+                Write-Host "ERROR: 模型名称不能为空" -ForegroundColor Red
+                exit 1
+            }
         } elseif ($index -gt 0 -and $index -le $allModels.Count) {
             $selected = $allModels[$index - 1]
         } else {
-            Write-Host "无效选择" -ForegroundColor Red
+            Write-Host "ERROR: 无效的序号，请输入 0-$($allModels.Count) 之间的数字" -ForegroundColor Red
             exit 1
         }
     } else {
-        # 直接输入模型名称
-        $selected = $choice
+        # 直接输入模型名称，验证是否为有效模型
+        $inputModel = $choice.Trim()
+        if ([string]::IsNullOrWhiteSpace($inputModel)) {
+            Write-Host "ERROR: 模型名称不能为空" -ForegroundColor Red
+            exit 1
+        }
+        # 检查是否是已知模型（本地或已配置的 API 模型）
+        if ($allModels -contains $inputModel) {
+            $selected = $inputModel
+        } else {
+            # 允许输入新模型名称（可能是新的 API 模型）
+            $selected = $inputModel
+            Write-Host "提示: 将使用新模型名称 '$selected'，如果这是 API 模型，请确保已正确配置 API" -ForegroundColor Yellow
+        }
     }
     
     if ([string]::IsNullOrWhiteSpace($selected)) {
-        Write-Host "无效输入" -ForegroundColor Red
+        Write-Host "ERROR: 无效输入" -ForegroundColor Red
         exit 1
     }
     
@@ -1641,29 +1658,47 @@ if ($firstArg -eq "-config" -or $firstArg -eq "config") {
         $script:CONFIGURED_MODELS += $MODEL
     }
     
-    # 加载已保存的模型 API 配置
+    # 加载已保存的模型 API 配置（使用原始模型名作为 key）
     $savedApiConfigs = @{}
     if (Test-Path $CONFIG_FILE) {
         $configContent = [System.IO.File]::ReadAllText($CONFIG_FILE, [System.Text.Encoding]::UTF8)
+        
+        # 先获取所有已配置的模型列表（用于映射安全变量名到原始模型名）
+        $allConfiguredModels = @()
+        if ($configContent -match '\$CONFIGURED_MODELS\s*=\s*@\(([^)]*)\)') {
+            $modelsStr = $matches[1]
+            $allConfiguredModels = $modelsStr -split ',' | ForEach-Object { $_.Trim().Trim('"').Trim("'") } | Where-Object { $_ }
+        }
+        
+        # 解析每个模型的 API 配置
         $configContent -split "`n" | ForEach-Object {
             if ($_ -match '\$MODEL_API_CONFIG_([^=]+)\s*=\s*@\{([^}]+)\}') {
-                $modelName = $matches[1].Trim()
+                $safeModelName = $matches[1].Trim()
                 $configStr = $matches[2]
                 $apiConfig = @{}
                 if ($configStr -match 'API_TYPE\s*=\s*"([^"]*)"') { $apiConfig.API_TYPE = $matches[1] }
                 if ($configStr -match 'OLLAMA_URL\s*=\s*"([^"]*)"') { $apiConfig.OLLAMA_URL = $matches[1] }
                 if ($configStr -match 'API_KEY\s*=\s*"([^"]*)"') { $apiConfig.API_KEY = $matches[1] }
-                $savedApiConfigs[$modelName] = $apiConfig
+                
+                # 通过 CONFIGURED_MODELS 找到对应的原始模型名
+                foreach ($model in $allConfiguredModels) {
+                    $modelSafeName = $model -replace '[^a-zA-Z0-9_]', '_'
+                    if ($modelSafeName -eq $safeModelName) {
+                        $savedApiConfigs[$model] = $apiConfig
+                        break
+                    }
+                }
             }
         }
     }
     
-    # 保存当前模型的 API 配置
-    $safeModelName = $MODEL -replace '[^a-zA-Z0-9_]', '_'
-    $savedApiConfigs[$safeModelName] = @{
-        API_TYPE = $API_TYPE
-        OLLAMA_URL = $OLLAMA_URL
-        API_KEY = $API_KEY
+    # 保存当前模型的 API 配置（使用原始模型名，仅当是 API 模型时保存）
+    if ($MODEL -and $API_TYPE -ne "ollama") {
+        $savedApiConfigs[$MODEL] = @{
+            API_TYPE = $API_TYPE
+            OLLAMA_URL = $OLLAMA_URL
+            API_KEY = $API_KEY
+        }
     }
     
     # 保存配置
@@ -1671,7 +1706,8 @@ if ($firstArg -eq "-config" -or $firstArg -eq "config") {
     $apiConfigLines = ""
     foreach ($modelName in $savedApiConfigs.Keys) {
         $config = $savedApiConfigs[$modelName]
-        $apiConfigLines += "`$MODEL_API_CONFIG_$modelName = @{`"API_TYPE`"=`"$($config.API_TYPE)`";`"OLLAMA_URL`"=`"$($config.OLLAMA_URL)`";`"API_KEY`"=`"$($config.API_KEY)`"}`n"
+        $safeModelName = $modelName -replace '[^a-zA-Z0-9_]', '_'
+        $apiConfigLines += "`$MODEL_API_CONFIG_$safeModelName = @{`"API_TYPE`"=`"$($config.API_TYPE)`";`"OLLAMA_URL`"=`"$($config.OLLAMA_URL)`";`"API_KEY`"=`"$($config.API_KEY)`"}`n"
     }
     $configContent = @"
 # CC 配置文件
@@ -1892,3 +1928,4 @@ $confirm = Read-Host "[y/n]"
 if ([string]::IsNullOrWhiteSpace($confirm) -or $confirm -eq "y" -or $confirm -eq "yes") {
     Invoke-Expression $cmd
 }
+
