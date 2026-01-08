@@ -3,20 +3,23 @@
 Register-ArgumentCompleter -CommandName cc -ScriptBlock {
     param($commandName, $wordToComplete, $commandAst, $fakeBoundParameters)
     
-    # 所有预设命令
+    # 所有预设命令（统一使用 - 前缀格式）
     $commands = @(
-        'hello', 'list', 'testapi',
-        '-w', 'work',
-        '-r', 'rest', 'chat',
-        '-stream', 'stream',
-        '-config', 'config',
-        '-change', 'change',
-        '-add', 'add',
-        '-del', 'delete', 'rm',
-        '-shell', 'shell',
-        '-fix',
-        '-u', 'update',
-        '-h', 'help'
+        '-hello', '--hello',
+        '-list', '--list',
+        '-testapi', '-test',
+        '-w', '--work',
+        '-r', '--rest', '--chat',
+        '-stream', '--stream',
+        '-fix', '--fix', '-fix-encoding',
+        '-shell', '--shell',
+        '-u', '--update', '-update',
+        '-change', '--change',
+        '-add', '--add',
+        '-config', '--config',
+        '-del', '--del', '-delete', '-rm',
+        '-setup', '--setup',
+        '-h', '--help', '-help'
     )
     
     # 过滤匹配的命令

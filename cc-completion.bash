@@ -7,8 +7,8 @@ _cc_completion() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     
-    # 所有预设命令
-    opts="hello list testapi -w work -r rest chat -stream stream -config config -change change -add add -del delete rm -shell shell -fix -u update -h help"
+    # 所有预设命令（统一使用 - 前缀格式）
+    opts="-hello --hello -list --list -testapi -test -w --work -r --rest --chat -stream --stream -fix --fix -fix-encoding -shell --shell -u --update -update -change --change -add --add -config --config -del --del -delete -rm -setup --setup -h --help -help"
     
     # 如果当前词以 - 开头或为空，提供补全
     if [[ ${cur} == -* ]] || [[ ${COMP_CWORD} -eq 1 ]]; then
