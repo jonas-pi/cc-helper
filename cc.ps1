@@ -478,8 +478,8 @@ $firstArg = if ($args.Count -gt 0) {
     ""
 }
 
-# 预设指令: hello（不依赖模型）
-if ($firstArg -eq "hello") {
+# 预设指令: -hello（不依赖模型）
+if ($firstArg -eq "-hello" -or $firstArg -eq "--hello") {
     Write-Host "$EMOJI_HELLO cc v$VERSION" -ForegroundColor Gray
     Write-Host ""
     
@@ -527,8 +527,8 @@ if ($firstArg -eq "hello") {
     exit 0
 }
 
-# 预设指令: list 列出模型
-if ($firstArg -eq "list" -or $firstArg -eq "-list" -or $firstArg -eq "--list") {
+# 预设指令: -list 列出模型
+if ($firstArg -eq "-list" -or $firstArg -eq "--list") {
     # 从配置文件读取已配置的模型列表
     $configuredModels = $script:CONFIGURED_MODELS
     if ($null -eq $configuredModels) {
@@ -602,8 +602,8 @@ if ($firstArg -eq "list" -or $firstArg -eq "-list" -or $firstArg -eq "--list") {
     exit 0
 }
 
-# 预设指令: testapi 测试 API 连接
-if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-test" -or $firstArg -eq "-testapi") {
+# 预设指令: -testapi 测试 API 连接
+if ($firstArg -eq "-testapi" -or $firstArg -eq "-test") {
     # 获取所有配置的模型（包括云端和本地）
     $allModels = @()
     $modelConfigs = @{}  # key: 模型名, value: API配置
@@ -768,7 +768,7 @@ if ($firstArg -eq "testapi" -or $firstArg -eq "test-api" -or $firstArg -eq "-tes
 }
 
 # 预设指令: -w 工作模式
-if ($firstArg -eq "-w" -or $firstArg -eq "work") {
+if ($firstArg -eq "-w" -or $firstArg -eq "--work") {
     # 更新配置文件中的 MODE
     if (Test-Path $CONFIG_FILE) {
         $content = Get-Content $CONFIG_FILE -Raw
@@ -803,7 +803,7 @@ if ($firstArg -eq "-w" -or $firstArg -eq "work") {
 }
 
 # 预设指令: -r 休息模式
-if ($firstArg -eq "-r" -or $firstArg -eq "rest" -or $firstArg -eq "chat") {
+if ($firstArg -eq "-r" -or $firstArg -eq "--rest" -or $firstArg -eq "--chat") {
     # 更新配置文件中的 MODE
     if (Test-Path $CONFIG_FILE) {
         $content = Get-Content $CONFIG_FILE -Raw
@@ -838,7 +838,7 @@ if ($firstArg -eq "-r" -or $firstArg -eq "rest" -or $firstArg -eq "chat") {
 }
 
 # 预设指令: -stream 切换流式传输
-if ($firstArg -eq "-stream" -or $firstArg -eq "stream") {
+if ($firstArg -eq "-stream" -or $firstArg -eq "--stream") {
     # 切换流式传输状态
     $newStream = -not $STREAM
     $statusText = if ($newStream) { "已开启流式传输" } else { "已关闭流式传输" }
@@ -876,7 +876,7 @@ if ($firstArg -eq "-stream" -or $firstArg -eq "stream") {
 }
 
 # 预设指令: -fix 全面检测与修复
-if ($firstArg -eq "-fix" -or $firstArg -eq "fix" -or $firstArg -eq "-fix-encoding") {
+if ($firstArg -eq "-fix" -or $firstArg -eq "--fix" -or $firstArg -eq "-fix-encoding") {
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
     Write-Host "           全面检测与修复              " -ForegroundColor Cyan
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
@@ -1039,7 +1039,7 @@ if ($firstArg -eq "-fix" -or $firstArg -eq "fix" -or $firstArg -eq "-fix-encodin
 }
 
 # 预设指令: -shell 切换目标 Shell
-if ($firstArg -eq "-shell" -or $firstArg -eq "shell") {
+if ($firstArg -eq "-shell" -or $firstArg -eq "--shell") {
     Write-Host "当前目标 Shell: " -NoNewline -ForegroundColor Gray
     if ($TARGET_SHELL -eq "cmd") {
         Write-Host "CMD" -ForegroundColor Yellow
@@ -1083,7 +1083,7 @@ if ($firstArg -eq "-shell" -or $firstArg -eq "shell") {
 }
 
 # 预设指令: -u 更新（不依赖模型）
-if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") {
+if ($firstArg -eq "-u" -or $firstArg -eq "--update" -or $firstArg -eq "-update") {
     Write-Host "正在检查更新..." -ForegroundColor Cyan
     
     try {
@@ -1204,7 +1204,7 @@ if ($firstArg -eq "-u" -or $firstArg -eq "update" -or $firstArg -eq "--update") 
 }
 
 # 预设指令: -change 切换模型
-if ($firstArg -eq "-change" -or $firstArg -eq "change") {
+if ($firstArg -eq "-change" -or $firstArg -eq "--change") {
     Write-Host "当前配置:" -ForegroundColor Cyan
     Write-Host "  API 类型: " -NoNewline; Write-Host "$script:API_TYPE" -ForegroundColor Cyan
     Write-Host "  当前模型: " -NoNewline; Write-Host "$script:MODEL" -ForegroundColor Green
@@ -1525,7 +1525,7 @@ $apiConfigLines
 }
 
 # 预设指令: -add 安装新模型
-if ($firstArg -eq "-add" -or $firstArg -eq "add") {
+if ($firstArg -eq "-add" -or $firstArg -eq "--add") {
     Write-Host "推荐模型:" -ForegroundColor Gray
     Write-Host "  1. phi3.5        - 微软模型，PS最佳 (2.2GB)"
     Write-Host "  2. llama3.2:1b   - Meta轻量 (1.2GB)"
@@ -1689,7 +1689,7 @@ $apiConfigLines
 }
 
 # 预设指令: -config 配置 API
-if ($firstArg -eq "-config" -or $firstArg -eq "config") {
+if ($firstArg -eq "-config" -or $firstArg -eq "--config") {
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
     Write-Host "          CC API 配置 - 成长空间          " -ForegroundColor Cyan
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
@@ -1922,7 +1922,7 @@ $apiConfigLines
 }
 
 # 预设指令: -del 删除模型
-if ($firstArg -eq "-del" -or $firstArg -eq "delete" -or $firstArg -eq "rm") {
+if ($firstArg -eq "-del" -or $firstArg -eq "--del" -or $firstArg -eq "-delete" -or $firstArg -eq "-rm") {
     # 从配置文件读取已配置的模型列表
     $configuredModels = $script:CONFIGURED_MODELS
     if ($null -eq $configuredModels) {
@@ -2149,7 +2149,7 @@ if ($firstArg -eq "-del" -or $firstArg -eq "delete" -or $firstArg -eq "rm") {
 }
 
 # 预设指令: -setup 自动配置环境
-if ($firstArg -eq "-setup" -or $firstArg -eq "setup") {
+if ($firstArg -eq "-setup" -or $firstArg -eq "--setup") {
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
     Write-Host "        CC 环境自动配置向导              " -ForegroundColor Cyan
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
@@ -2239,7 +2239,7 @@ function cc {
 }
 
 # 帮助信息
-if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $firstArg -eq "-help" -or $firstArg -eq "help") {
+if ($args.Count -lt 1 -or $firstArg -eq "-h" -or $firstArg -eq "--help" -or $firstArg -eq "-help") {
     if ($isGBK) {
         # GBK 编码：使用简单边框
         Write-Host "============================================" -ForegroundColor Cyan

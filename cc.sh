@@ -306,8 +306,8 @@ ${query}
 main() {
     local first_arg="$1"
     
-    # 预设指令: hello（不依赖模型）
-    if [ "$first_arg" = "hello" ]; then
+    # 预设指令: -hello（不依赖模型）
+    if [ "$first_arg" = "-hello" ] || [ "$first_arg" = "--hello" ]; then
         echo -e "\033[0;37m$EMOJI_HELLO cc v$VERSION\033[0m"
         echo ""
         
@@ -336,8 +336,8 @@ main() {
         exit 0
     fi
     
-    # 预设指令: list 列出模型
-    if [ "$first_arg" = "list" ] || [ "$first_arg" = "-list" ] || [ "$first_arg" = "--list" ]; then
+    # 预设指令: -list 列出模型
+    if [ "$first_arg" = "-list" ] || [ "$first_arg" = "--list" ]; then
         # 获取本地模型
         local ollama_models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
         
@@ -385,8 +385,8 @@ main() {
         exit 0
     fi
     
-    # 预设指令: testapi 测试 API 连接
-    if [ "$first_arg" = "testapi" ] || [ "$first_arg" = "test-api" ] || [ "$first_arg" = "-test" ]; then
+    # 预设指令: -testapi 测试 API 连接
+    if [ "$first_arg" = "-testapi" ] || [ "$first_arg" = "-test" ]; then
         # 获取所有配置的模型（包括云端和本地）
         local all_models=()
         declare -A model_configs  # key: 模型名, value: API配置字符串
@@ -502,7 +502,7 @@ main() {
     fi
     
     # 预设指令: -w 工作模式
-    if [ "$first_arg" = "-w" ] || [ "$first_arg" = "work" ]; then
+    if [ "$first_arg" = "-w" ] || [ "$first_arg" = "--work" ]; then
         # 更新配置文件中的 MODE
         if [ -f "$CONFIG_FILE" ]; then
             # 使用更健壮的 sed 命令，支持各种格式
@@ -523,7 +523,7 @@ main() {
     fi
     
     # 预设指令: -r 休息模式
-    if [ "$first_arg" = "-r" ] || [ "$first_arg" = "rest" ] || [ "$first_arg" = "chat" ]; then
+    if [ "$first_arg" = "-r" ] || [ "$first_arg" = "--rest" ] || [ "$first_arg" = "--chat" ]; then
         # 更新配置文件中的 MODE
         if [ -f "$CONFIG_FILE" ]; then
             # 使用更健壮的 sed 命令，支持各种格式
@@ -544,7 +544,7 @@ main() {
     fi
     
     # 预设指令: -stream 切换流式传输
-    if [ "$first_arg" = "-stream" ] || [ "$first_arg" = "stream" ]; then
+    if [ "$first_arg" = "-stream" ] || [ "$first_arg" = "--stream" ]; then
         # 切换流式传输状态
         if [ "$STREAM" = "true" ]; then
             new_stream="false"
@@ -575,7 +575,7 @@ main() {
     fi
     
     # 预设指令: -fix 修复编码（Linux 不需要，主要用于保持接口一致性）
-    if [ "$first_arg" = "-fix" ] || [ "$first_arg" = "fix" ] || [ "$first_arg" = "-fix-encoding" ]; then
+    if [ "$first_arg" = "-fix" ] || [ "$first_arg" = "--fix" ] || [ "$first_arg" = "-fix-encoding" ]; then
         echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
         echo -e "\033[1;36m            编码检测与修复              \033[0m"
         echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
@@ -654,7 +654,7 @@ main() {
     fi
     
     # 预设指令: -u 更新（不依赖模型）
-    if [ "$first_arg" = "-u" ] || [ "$first_arg" = "update" ] || [ "$first_arg" = "--update" ]; then
+    if [ "$first_arg" = "-u" ] || [ "$first_arg" = "--update" ] || [ "$first_arg" = "-update" ]; then
         echo -e "\033[1;36m正在检查更新...\033[0m"
         
         # 获取远程版本号
@@ -733,7 +733,7 @@ main() {
     fi
     
     # 预设指令: -change 切换模型
-    if [ "$first_arg" = "-change" ] || [ "$first_arg" = "change" ]; then
+    if [ "$first_arg" = "-change" ] || [ "$first_arg" = "--change" ]; then
         echo -e "\033[1;36m当前配置:\033[0m"
         echo -e "  API 类型: \033[1;36m$API_TYPE\033[0m"
         echo -e "  当前模型: \033[1;32m$MODEL\033[0m"
@@ -1017,7 +1017,7 @@ EOF
     fi
     
     # 预设指令: -add 安装新模型
-    if [ "$first_arg" = "-add" ] || [ "$first_arg" = "add" ]; then
+    if [ "$first_arg" = "-add" ] || [ "$first_arg" = "--add" ]; then
         echo -e "\033[0;37m推荐模型:\033[0m"
         echo "  1. qwen2.5:0.5b  - 超轻量 (400MB)"
         echo "  2. qwen2.5:1.5b  - 轻量推荐 (1GB)"
@@ -1102,7 +1102,7 @@ EOF
     fi
     
     # 预设指令: -config 配置 API
-    if [ "$first_arg" = "-config" ] || [ "$first_arg" = "config" ]; then
+    if [ "$first_arg" = "-config" ] || [ "$first_arg" = "--config" ]; then
         echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
         echo -e "\033[1;36m          CC API 配置 - 成长空间          \033[0m"
         echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
@@ -1287,7 +1287,7 @@ EOF
     fi
     
     # 预设指令: -del 删除模型
-    if [ "$first_arg" = "-del" ] || [ "$first_arg" = "delete" ] || [ "$first_arg" = "rm" ]; then
+    if [ "$first_arg" = "-del" ] || [ "$first_arg" = "--del" ] || [ "$first_arg" = "-delete" ] || [ "$first_arg" = "-rm" ]; then
         # 从配置文件读取已配置的模型列表
         local configured_models_array=()
         if [ -n "$CONFIGURED_MODELS" ]; then
