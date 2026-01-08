@@ -423,33 +423,39 @@ if ($firstArg -eq "hello") {
 
 # 预设指令: list 列出模型
 if ($firstArg -eq "list" -or $firstArg -eq "-list" -or $firstArg -eq "--list") {
-    if ($API_TYPE -eq "ollama") {
-        # Ollama: 列出本地安装的模型
-        $modelList = ollama list 2>$null
-        if (-not $modelList) {
-            Write-Host "未找到已安装的模型" -ForegroundColor Yellow
-            Write-Host "使用 " -NoNewline -ForegroundColor Gray
-            Write-Host "cc -add" -NoNewline -ForegroundColor Green
-            Write-Host " 安装新模型" -ForegroundColor Gray
-            exit 0
-        }
-        
-        $models = $modelList | Select-Object -Skip 1 | ForEach-Object {
+    # 从配置文件读取已配置的模型列表
+    $configuredModels = $script:CONFIGURED_MODELS
+    if ($null -eq $configuredModels) {
+        $configuredModels = @()
+    }
+    
+    # 获取本地已安装的模型
+    $ollamaModels = @()
+    $modelList = ollama list 2>$null
+    if ($modelList) {
+        $ollamaModels = $modelList | Select-Object -Skip 1 | ForEach-Object {
             ($_ -split '\s+')[0]
         } | Where-Object { $_ -ne "" }
-        
-        if ($models.Count -eq 0) {
-            Write-Host "未找到已安装的模型" -ForegroundColor Yellow
-            Write-Host "使用 " -NoNewline -ForegroundColor Gray
-            Write-Host "cc -add" -NoNewline -ForegroundColor Green
-            Write-Host " 安装新模型" -ForegroundColor Gray
-            exit 0
+    }
+    
+    # 分离云端 API 模型和本地模型
+    $apiModels = @()
+    $localModels = @()
+    
+    foreach ($model in $configuredModels) {
+        if ($ollamaModels -contains $model) {
+            $localModels += $model
+        } else {
+            $apiModels += $model
         }
-        
-        Write-Host "已安装的模型:" -ForegroundColor Gray
+    }
+    
+    # 显示云端 API 模型
+    if ($apiModels.Count -gt 0) {
+        Write-Host "已配置的 API 模型:" -ForegroundColor Gray
         Write-Host ""
-        foreach ($model in $models) {
-            if ($model -eq $MODEL) {
+        foreach ($model in $apiModels) {
+            if ($model -eq $MODEL -and $API_TYPE -ne "ollama") {
                 Write-Host "  $BULLET_CURRENT " -NoNewline
                 Write-Host "$model" -NoNewline -ForegroundColor Green
                 Write-Host " (当前)" -ForegroundColor DarkGray
@@ -458,24 +464,35 @@ if ($firstArg -eq "list" -or $firstArg -eq "-list" -or $firstArg -eq "--list") {
             }
         }
         Write-Host ""
-        Write-Host "使用 " -NoNewline -ForegroundColor DarkGray
-        Write-Host "cc -change" -NoNewline -ForegroundColor Green
-        Write-Host " 切换模型" -ForegroundColor DarkGray
-    } else {
-        # 其他 API: 显示 API 信息
-        Write-Host "当前 API 配置:" -ForegroundColor Gray
-        Write-Host ""
-        Write-Host "  API 类型: " -NoNewline
-        Write-Host "$API_TYPE" -ForegroundColor Cyan
-        Write-Host "  API 地址: " -NoNewline
-        Write-Host "$OLLAMA_URL" -ForegroundColor DarkGray
-        Write-Host "  当前模型: " -NoNewline
-        Write-Host "$MODEL" -ForegroundColor Green
-        Write-Host ""
-        Write-Host "使用 " -NoNewline -ForegroundColor DarkGray
-        Write-Host "cc -config" -NoNewline -ForegroundColor Green
-        Write-Host " 更改配置" -ForegroundColor DarkGray
     }
+    
+    # 显示本地模型
+    if ($localModels.Count -gt 0) {
+        Write-Host "本地已下载的模型:" -ForegroundColor Gray
+        Write-Host ""
+        foreach ($model in $localModels) {
+            if ($model -eq $MODEL -and $API_TYPE -eq "ollama") {
+                Write-Host "  $BULLET_CURRENT " -NoNewline
+                Write-Host "$model" -NoNewline -ForegroundColor Green
+                Write-Host " (当前)" -ForegroundColor DarkGray
+            } else {
+                Write-Host "  $BULLET $model"
+            }
+        }
+        Write-Host ""
+    }
+    
+    # 如果没有模型
+    if ($apiModels.Count -eq 0 -and $localModels.Count -eq 0) {
+        Write-Host "未找到已配置的模型" -ForegroundColor Yellow
+        Write-Host "使用 " -NoNewline -ForegroundColor Gray
+        Write-Host "cc -add" -NoNewline -ForegroundColor Green
+        Write-Host " 安装新模型" -ForegroundColor Gray
+        Write-Host "或使用 " -NoNewline -ForegroundColor Gray
+        Write-Host "cc -config" -NoNewline -ForegroundColor Green
+        Write-Host " 配置 API 模型" -ForegroundColor Gray
+    }
+    
     exit 0
 }
 
@@ -1796,47 +1813,159 @@ $apiConfigLines
 
 # 预设指令: -del 删除模型
 if ($firstArg -eq "-del" -or $firstArg -eq "delete" -or $firstArg -eq "rm") {
+    # 从配置文件读取已配置的模型列表
+    $configuredModels = $script:CONFIGURED_MODELS
+    if ($null -eq $configuredModels) {
+        $configuredModels = @()
+    }
+    
+    # 获取本地已安装的模型
+    $ollamaModels = @()
     $modelList = ollama list 2>$null
-    if (-not $modelList) {
-        Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
-        exit 1
+    if ($modelList) {
+        $ollamaModels = $modelList | Select-Object -Skip 1 | ForEach-Object {
+            ($_ -split '\s+')[0]
+        } | Where-Object { $_ -ne "" }
     }
     
-    $models = $modelList | Select-Object -Skip 1 | ForEach-Object {
-        ($_ -split '\s+')[0]
-    } | Where-Object { $_ -ne "" }
+    # 分离云端 API 模型和本地模型
+    $apiModels = @()
+    $localModels = @()
     
-    if ($models.Count -eq 0) {
-        Write-Host "ERROR: 未找到已安装的模型" -ForegroundColor Red
-        exit 1
-    }
-    
-    Write-Host "已安装的模型:" -ForegroundColor Gray
-    for ($i = 0; $i -lt $models.Count; $i++) {
-        if ($models[$i] -eq $MODEL) {
-            Write-Host "  $($i + 1). " -NoNewline
-            Write-Host "$($models[$i])" -ForegroundColor Green -NoNewline
-            Write-Host " (当前使用)"
+    foreach ($model in $configuredModels) {
+        if ($ollamaModels -contains $model) {
+            $localModels += $model
         } else {
-            Write-Host "  $($i + 1). $($models[$i])"
+            $apiModels += $model
+        }
+    }
+    
+    # 合并所有模型用于显示
+    $allModels = @()
+    $modelTypes = @()  # 记录每个模型是 "API" 还是 "本地"
+    
+    foreach ($model in $apiModels) {
+        $allModels += $model
+        $modelTypes += "API"
+    }
+    
+    foreach ($model in $localModels) {
+        $allModels += $model
+        $modelTypes += "本地"
+    }
+    
+    if ($allModels.Count -eq 0) {
+        Write-Host "未找到已配置的模型" -ForegroundColor Yellow
+        exit 0
+    }
+    
+    Write-Host "已配置的模型:" -ForegroundColor Gray
+    Write-Host ""
+    for ($i = 0; $i -lt $allModels.Count; $i++) {
+        $model = $allModels[$i]
+        $type = $modelTypes[$i]
+        $isCurrent = ($model -eq $MODEL)
+        
+        if ($isCurrent) {
+            Write-Host "  $($i + 1). " -NoNewline
+            Write-Host "$model" -ForegroundColor Green -NoNewline
+            Write-Host " [$type] " -NoNewline -ForegroundColor DarkGray
+            Write-Host "(当前使用)" -ForegroundColor Yellow
+        } else {
+            Write-Host "  $($i + 1). " -NoNewline
+            Write-Host "$model" -NoNewline
+            Write-Host " [$type]" -ForegroundColor DarkGray
         }
     }
     
     Write-Host ""
-    Write-Host "请选择要删除的模型 (序号，多个用空格分隔): " -ForegroundColor Yellow -NoNewline
+    Write-Host "  0. 删除所有模型" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "请选择要删除的模型 (序号，多个用空格分隔，0=删除所有): " -ForegroundColor Yellow -NoNewline
     $choices = Read-Host
     
+    # 处理删除所有
+    if ($choices -eq "0" -or $choices -match "^\s*0\s*$") {
+        Write-Host ""
+        Write-Host "警告: 将删除所有已配置的模型！" -ForegroundColor Red
+        Write-Host "  - 云端 API 模型: 将从配置文件中清除" -ForegroundColor Yellow
+        Write-Host "  - 本地模型: 将删除模型文件" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "确认删除所有模型? [y/n] " -ForegroundColor Yellow -NoNewline
+        $confirm = Read-Host
+        if ($confirm -ne "y" -and $confirm -ne "Y") {
+            Write-Host "已取消" -ForegroundColor Gray
+            exit 0
+        }
+        
+        $deletedCount = 0
+        $failedCount = 0
+        
+        # 删除所有本地模型
+        foreach ($model in $localModels) {
+            Write-Host "正在删除本地模型 $model..." -ForegroundColor Gray
+            ollama rm $model 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  ✓ 已删除本地模型: $model" -ForegroundColor Green
+                $deletedCount++
+            } else {
+                Write-Host "  ✗ 删除失败: $model" -ForegroundColor Red
+                $failedCount++
+            }
+        }
+        
+        # 清除所有配置（包括云端 API 模型和本地模型的配置）
+        $script:CONFIGURED_MODELS = @()
+        
+        # 更新配置文件
+        if (Test-Path $CONFIG_FILE) {
+            $content = Get-Content $CONFIG_FILE -Raw
+            
+            # 清空 CONFIGURED_MODELS
+            if ($content -match '(?m)^\s*\$CONFIGURED_MODELS\s*=') {
+                $content = $content -replace '(?m)^\s*\$CONFIGURED_MODELS\s*=.*', "`$CONFIGURED_MODELS = @()"
+            } else {
+                $content = $content.TrimEnd() + "`n`$CONFIGURED_MODELS = @()"
+            }
+            
+            # 删除所有模型的 API 配置
+            $content = $content -replace '(?m)^\s*\$MODEL_API_CONFIG_[^\r\n]*\r?\n', ''
+            
+            $currentEncoding = [Console]::OutputEncoding
+            if ($currentEncoding.CodePage -eq 936) {
+                $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+            } else {
+                $saveEncoding = New-Object System.Text.UTF8Encoding $true
+            }
+            [System.IO.File]::WriteAllText($CONFIG_FILE, $content, $saveEncoding)
+        }
+        
+        Write-Host ""
+        Write-Host "✓ 已清除所有模型配置" -ForegroundColor Green
+        Write-Host "  删除成功: $deletedCount 个本地模型" -ForegroundColor Gray
+        if ($failedCount -gt 0) {
+            Write-Host "  删除失败: $failedCount 个模型" -ForegroundColor Yellow
+        }
+        exit 0
+    }
+    
+    # 处理单个或多个模型删除
     $numbers = $choices -split '\s+' | Where-Object { $_ -match '^\d+$' }
+    $deletedModels = @()
+    
     foreach ($num in $numbers) {
         $index = [int]$num - 1
-        if ($index -lt 0 -or $index -ge $models.Count) {
+        if ($index -lt 0 -or $index -ge $allModels.Count) {
             Write-Host "无效序号: $num" -ForegroundColor Red
             continue
         }
         
-        $selected = $models[$index]
+        $selected = $allModels[$index]
+        $selectedType = $modelTypes[$index]
+        $isCurrent = ($selected -eq $MODEL)
         
-        if ($selected -eq $MODEL) {
+        if ($isCurrent) {
+            Write-Host ""
             Write-Host "警告: $selected 是当前使用的模型" -ForegroundColor Yellow
             Write-Host "确认删除? [y/n] " -ForegroundColor Yellow -NoNewline
             $confirm = Read-Host
@@ -1846,14 +1975,66 @@ if ($firstArg -eq "-del" -or $firstArg -eq "delete" -or $firstArg -eq "rm") {
             }
         }
         
-        Write-Host "正在删除 $selected..." -ForegroundColor Gray
-        ollama rm $selected 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "已删除 $selected" -ForegroundColor Gray
+        if ($selectedType -eq "本地") {
+            # 删除本地模型
+            Write-Host ""
+            Write-Host "正在删除本地模型 $selected..." -ForegroundColor Gray
+            ollama rm $selected 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  ✓ 已删除本地模型: $selected" -ForegroundColor Green
+                $deletedModels += $selected
+            } else {
+                Write-Host "  ✗ 删除失败: $selected" -ForegroundColor Red
+            }
         } else {
-            Write-Host "删除失败: $selected" -ForegroundColor Red
+            # 云端 API 模型，只从配置中移除
+            Write-Host ""
+            Write-Host "正在清除 API 模型配置 $selected..." -ForegroundColor Gray
+            $deletedModels += $selected
         }
     }
+    
+    # 更新配置文件：从 CONFIGURED_MODELS 中移除已删除的模型
+    if ($deletedModels.Count -gt 0) {
+        $newConfiguredModels = @()
+        foreach ($model in $script:CONFIGURED_MODELS) {
+            if ($deletedModels -notcontains $model) {
+                $newConfiguredModels += $model
+            }
+        }
+        $script:CONFIGURED_MODELS = $newConfiguredModels
+        
+        # 更新配置文件
+        if (Test-Path $CONFIG_FILE) {
+            $content = Get-Content $CONFIG_FILE -Raw
+            
+            # 更新 CONFIGURED_MODELS
+            $modelsArrayStr = "@(" + ($script:CONFIGURED_MODELS | ForEach-Object { "`"$_`"" }) -join "," + ")"
+            if ($content -match '(?m)^\s*\$CONFIGURED_MODELS\s*=') {
+                $content = $content -replace '(?m)^\s*\$CONFIGURED_MODELS\s*=.*', "`$CONFIGURED_MODELS = $modelsArrayStr"
+            } else {
+                $content = $content.TrimEnd() + "`n`$CONFIGURED_MODELS = $modelsArrayStr"
+            }
+            
+            # 删除已删除模型的 API 配置
+            foreach ($deletedModel in $deletedModels) {
+                $safeModelName = $deletedModel -replace '[^a-zA-Z0-9_]', '_'
+                $content = $content -replace "(?m)^\s*\$MODEL_API_CONFIG_$safeModelName\s*=[^\r\n]*\r?\n", ''
+            }
+            
+            $currentEncoding = [Console]::OutputEncoding
+            if ($currentEncoding.CodePage -eq 936) {
+                $saveEncoding = [System.Text.Encoding]::GetEncoding(936)
+            } else {
+                $saveEncoding = New-Object System.Text.UTF8Encoding $true
+            }
+            [System.IO.File]::WriteAllText($CONFIG_FILE, $content, $saveEncoding)
+        }
+        
+        Write-Host ""
+        Write-Host "✓ 已更新配置文件" -ForegroundColor Green
+    }
+    
     exit 0
 }
 
